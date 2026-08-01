@@ -1,5 +1,6 @@
-/* Insights → Partners: the organization side of the platform.
-   Presentation only. */
+/* Insights → Partners: the organization side of the platform. Presentation
+   only — the figures arrive computed on the analytics object the workspace
+   hands down. */
 (function (QB) {
   'use strict';
 
@@ -9,7 +10,7 @@
   function searches(pt) {
     return html`<section class="panel" aria-label="Recruiter search activity">
       <h2 class="panel__title panel__title--sm">What recruiters search for</h2>
-      <p class="panel__sub">Top queries, last 90 days</p>
+      <p class="panel__sub">Skills asked for in the offers posted in this window</p>
       <hr class="rule">
       ${ui.hbars(pt.searches)}
     </section>`;
@@ -38,9 +39,9 @@
   }
 
   function viewed(pt) {
-    return html`<section class="panel" aria-label="Most-viewed alumni profiles">
-      <h2 class="panel__title panel__title--sm">Most-viewed alumni</h2>
-      <p class="panel__sub">Profile views by recruiters, last 30 days</p>
+    return html`<section class="panel" aria-label="Most-shortlisted alumni profiles">
+      <h2 class="panel__title panel__title--sm">Most-shortlisted alumni</h2>
+      <p class="panel__sub">Who comes up most often as a suggested match on an offer</p>
       <hr class="rule">
       <ul class="rows">
         ${pt.viewed.map(function (r) {
@@ -76,8 +77,8 @@
   }
 
   QB.insightTabs = QB.insightTabs || {};
-  QB.insightTabs.Partners = function () {
-    var pt = QB.insights.partners;
+  QB.insightTabs.Partners = function (state, ins) {
+    var pt = ins.partners;
     return html`${ui.statsRow(pt.stats)}
     <div class="grid-analysis">${searches(pt)}${orgTable(pt)}</div>
     <div class="grid-half">${viewed(pt)}${dormant(pt)}</div>`;

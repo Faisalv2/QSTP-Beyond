@@ -1,7 +1,12 @@
 /* Management / operations. Two workspaces, each a left sidebar plus a body:
    Insights (five analytics views registered in QB.insightTabs by the
-   insights-*.js files, over a persistent KPI strip and global filters) and
-   Programmes (events, spotlight, Ideastorm, referrals). */
+   insights-*.js files, over a persistent KPI strip and a filter rail) and
+   Programmes (events, spotlight, Ideastorm, referrals).
+
+   Insights owns one call to QB.analytics.compute per render: the rail's nine
+   selects make the filter object, and the result is what the strip and the
+   active tab draw. The only thing read off the store directly is the size of
+   the whole roster, which the lede needs to say what fraction is in view. */
 (function (QB) {
   'use strict';
 
@@ -52,6 +57,9 @@
       })}
     </div>`;
   }
+  /* Shared with src/screens/report.js, which draws the same strip above the
+     printed sections. */
+  QB.kpiStrip = kpiStrip;
 
   var SIDE_TABS = [
     { id: 'Outcomes', hint: 'ROI & data health' },
@@ -60,6 +68,8 @@
     { id: 'Community', hint: 'Ideastorm & events' },
     { id: 'Partners', hint: 'Organizations' }
   ];
+  /* The export report walks these same five sections, in the same order. */
+  QB.insightSideTabs = SIDE_TABS;
 
   /* Section sidebar — shared by both workspaces. */
   function sideNav(title, tabs, active, action) {
@@ -76,41 +86,72 @@
     </nav>`;
   }
 
-  /* Global insights filters. Time range leads and is wired to the store — it
-     is the one every view is read against; the rest are presentational until
-     the filtering logic lands. */
-  var GLOBAL_FILTERS = [
-    ['Cohort', ['All cohorts', '2025', '2024', '2023', '2022', '2021']],
-    ['Outcome', ['All outcomes', 'Employed', 'Founded', 'Studying', 'Job-seeking', 'Unreported']],
-    ['Field / skill', ['All fields', 'Software', 'Design', 'Data', 'Biotech', 'Energy']],
-    ['Host startup', ['All hosts', 'Snoonu', 'Meddy', 'Fluidic', 'Ogram', 'Karaz']],
-    ['Current employer', ['All employers', 'QSTP companies', 'External companies']],
-    ['Location', ['Qatar & abroad', 'Qatar', 'Abroad']],
-    ['User type', ['Interns + alumni', 'Alumni', 'Current interns']],
-    ['Engagement', ['Any activity', 'Active', 'Dormant']]
-  ];
+  /* Employer is the one rail vocabulary the engine does not derive: it is a
+     grouping of person.employer against the partner list rather than a list
+     of values, so the three options are fixed here. */
+  var EMPLOYER_OPTIONS = ['All employers', 'QSTP companies', 'External companies'];
 
-  function insightsView(state, d) {
+  /* The filter object every view on this workspace is read against. The eight
+     rail selects live on state.ins; the time range stays on state.range,
+     because the rail and the page head have to name the same window.
+     Shared with src/screens/report.js, which computes the export off the same
+     merge rather than a second copy of it. */
+  function insightFilters(state) {
+    var ins = state.ins || {};
+    var f = {};
+    Object.keys(ins).forEach(function (key) { f[key] = ins[key]; });
+    f.range = state.range;
+    return f;
+  }
+  QB.insightFilters = insightFilters;
+
+  function insightsView(state) {
     var tab = QB.insightTabs[state.insightsTab] ? state.insightsTab : 'Outcomes';
-    var filters = [['Time range', QB.filters.ranges, 'range', state.range]].concat(GLOBAL_FILTERS);
+    /* Computed once and handed down: the strip, the rail and the active tab
+       must all describe the same selection, and compute is memoized on the
+       filter object anyway. */
+    var a = QB.analytics.compute(QB.insightFilters(state));
+    var v = a.vocab;
+    var f = a.filters;
+
+    /* Every select is wired — [label, options, field, current] — so a change
+       lands on state.ins and the next render narrows the whole workspace. */
+    var filters = [
+      ['Time range', QB.filters.ranges, 'range', state.range],
+      ['Cycle', v.cycles, 'ins.cycle', f.cycle],
+      ['Outcome', v.outcomes, 'ins.outcome', f.outcome],
+      ['Skill', v.skills, 'ins.skill', f.skill],
+      ['Host startup', v.hosts, 'ins.host', f.host],
+      ['Current employer', EMPLOYER_OPTIONS, 'ins.employer', f.employer],
+      ['Location', v.locations, 'ins.location', f.location],
+      ['User type', v.userTypes, 'ins.userType', f.userType],
+      ['Engagement', v.engagementLevels, 'ins.engagement', f.engagement]
+    ];
+
+    /* A filtered selection has to say so — otherwise a narrowed donut reads
+       as the whole roster having changed shape. */
+    var roster = QB.store.data.people.length;
+    var lede = a.total < roster
+      ? a.total.toLocaleString() + ' of ' + roster.toLocaleString() + ' alumni in view'
+      : a.total.toLocaleString() + ' tracked alumni · every figure below is computed from them';
 
     return html`<div class="page-head">
       <div>
         <h1 class="h1--sm">Insights</h1>
-        <p class="page-head__lede page-head__lede--sm">${d.trackedAlumni.toLocaleString()} tracked alumni · data refreshed 06:00 AST</p>
+        <p class="page-head__lede page-head__lede--sm">${lede}</p>
       </div>
       <div class="page-head__actions page-head__actions--end">
         <p class="page-head__note">Showing ${state.range.toLowerCase()}</p>
-        <button type="button" class="btn btn-secondary">Export all insights</button>
+        <button type="button" class="btn btn-secondary" data-act="exportInsights">Export all insights</button>
       </div>
     </div>
-    ${kpiStrip(QB.insights.kpis)}
+    ${kpiStrip(a.kpis)}
     <div class="workspace">
       <aside class="side">
         ${sideNav('Insights', SIDE_TABS, tab, 'insightsTab')}
-        ${ui.selectRail('Filters · all views', filters, 'Reset filters')}
+        ${ui.selectRail('Filters · all views', filters, 'Reset filters', 'resetInsights')}
       </aside>
-      <div class="workspace__body">${QB.insightTabs[tab](state, d)}</div>
+      <div class="workspace__body">${QB.insightTabs[tab](state, a)}</div>
     </div>`;
   }
 
@@ -253,7 +294,7 @@
     var d = QB.data;
     var view = state.mgmtNav === 'Programmes' ? programmes(state, d)
       : QB.mgmtViews[state.mgmtNav] ? QB.mgmtViews[state.mgmtNav](state)
-      : insightsView(state, d);
+      : insightsView(state);
     return html`${header(state, d.opsViewer)}
     <div class="page page--tight">${view}</div>`;
   };

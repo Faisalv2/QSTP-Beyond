@@ -23,15 +23,21 @@
             ${on ? ui.raw('aria-current="page"') : ''}>${item}</button>`;
         })}
       </nav>
-      <div class="user">
+      <button type="button" class="user user--button" data-act="openProfile"
+              aria-haspopup="dialog" title="Your profile and timeline">
         <span class="avatar avatar--teal avatar--online">${viewer.initials}</span>
         <span class="user__text">
           <span class="user__name">${viewer.name}</span>
           <span class="user__meta">${viewer.meta}</span>
         </span>
-      </div>
+      </button>
     </header>`;
   }
+
+  /* The record behind the card — the one seeded person the survey writes
+     onto — resolved the same way app.js resolves it, since this file has
+     no access to that closure. */
+  function storeViewer() { return QB.store.viewer(); }
 
   /* Three states. Unconfirmed, the card asks. Confirmed as-is, it keeps the
      status on file and says so. Answered through the survey, it reports the
@@ -40,15 +46,16 @@
   function statusCard(viewer, state) {
     var done = state.statusUpdated;
     var surveyed = state.statusSource === 'survey';
+    var record = storeViewer();
 
     return html`<section class="status" aria-labelledby="status-title">
       <div class="status__main">
         <p class="status__kicker">Career status · ${done
           ? 'confirmed a moment ago'
-          : 'last confirmed ' + viewer.statusSince}</p>
+          : 'last confirmed ' + record.lastUpdate}</p>
         <h2 class="status__title" id="status-title">${surveyed
           ? QB.surveySummary(state.survey.answers)
-          : viewer.currentStatus + (done ? '' : ' — still right?')}</h2>
+          : QB.statusLine(record) + (done ? '' : ' — still right?')}</h2>
         <p class="status__body">${done
           ? (surveyed
             ? html`Job offers, Ideastorm and Referrals are open for this session.
@@ -139,7 +146,7 @@
       <div>
         <p class="page-head__kicker">${viewer.today}</p>
         <h1>Good morning, ${viewer.name.split(' ')[0]}.</h1>
-        <p class="page-head__lede">Three years since your QSTP internship.
+        <p class="page-head__lede">A year on from your QSTP internship at Snoonu.
           Twelve roles opened this week that match your stack.</p>
       </div>
     </div>
@@ -162,8 +169,11 @@
     var tab = QB.alumniTabs[state.tab] ? state.tab : 'Home';
     var locked = state.statusUpdated ? [] : QB.surveyData.gatedTabs;
 
+    /* The survey outranks the profile: it is the one dialog that can be
+       compulsory, so it is never covered by the one that cannot. */
     return html`${header(d.viewer, tab, locked)}
     <div class="page">${QB.alumniTabs[tab](d, state)}</div>
-    ${state.survey.open ? QB.surveyDialog(state) : ''}`;
+    ${state.survey.open ? QB.surveyDialog(state)
+      : state.profile ? QB.profileDialog(state) : ''}`;
   };
 })(window.QB = window.QB || {});

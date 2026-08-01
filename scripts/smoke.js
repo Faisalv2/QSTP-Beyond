@@ -8,14 +8,19 @@ const vm = require('vm');
 
 const ROOT = path.join(__dirname, '..');
 const SOURCES = [
-  'src/data.js', 'src/data-insights.js', 'src/data-directory.js',
-  'src/data-survey.js', 'src/ui.js',
-  'src/screens/alumni.js', 'src/screens/alumni-survey.js', 'src/screens/alumni-jobs.js',
+  'src/data.js', 'src/data-directory.js',
+  'src/data-survey.js',
+  'src/seed-people.js', 'src/seed-world.js', 'src/store.js',
+  'src/analytics.js',
+  'src/ui.js',
+  'src/screens/alumni.js', 'src/screens/alumni-survey.js', 'src/screens/alumni-profile.js',
+  'src/screens/alumni-jobs.js',
   'src/screens/alumni-ideastorm.js', 'src/screens/alumni-referrals.js',
   'src/screens/management.js',
   'src/screens/insights-outcomes.js', 'src/screens/insights-engagement.js',
   'src/screens/insights-pipeline.js', 'src/screens/insights-community.js',
   'src/screens/insights-partners.js',
+  'src/screens/report.js',
   'src/screens/mgmt-alumni.js', 'src/screens/mgmt-partners.js',
   'src/screens/organization.js', 'src/screens/org-offers.js',
   'src/app.js'
@@ -30,6 +35,19 @@ const appEl = {
   contains() { return false; }
 };
 
+/* store.js caches its seeded world in localStorage, which Node has no notion
+   of. Backing it with a plain object exercises the write-then-read path
+   rather than the "no storage, generate in memory" fallback — and `cache`
+   stays visible from out here so the checks can inspect what was written. */
+const cache = Object.create(null);
+const localStorageStub = {
+  getItem(key) {
+    return Object.prototype.hasOwnProperty.call(cache, key) ? cache[key] : null;
+  },
+  setItem(key, value) { cache[key] = String(value); },
+  removeItem(key) { delete cache[key]; }
+};
+
 const sandbox = {
   console,
   document: {
@@ -38,6 +56,7 @@ const sandbox = {
     addEventListener() {},
     getElementById: (id) => (id === 'app' ? appEl : null)
   },
+  localStorage: localStorageStub,
   location: { hash: '' },
   addEventListener() {}
 };
@@ -92,10 +111,22 @@ const baseState = {
   offer: { title: '', loc: '', pay: '', skills: '', type: 'Full-time', prioritise: true },
   offers: QB.data.liveOffers.slice(),
   statusUpdated: false, statusSource: null,
+  ins: QB.analytics.defaults(),
   survey: { open: false, gated: null, step: 0, answers: QB.blankAnswers() }
 };
 const render = (screen, overrides) =>
   String(QB.screens[screen](Object.assign({}, baseState, overrides)));
+
+/* The insights markup is computed from the store, and the store is mutated
+   further down by the survey checks — so no figure here can be frozen as a
+   literal. `insightsFor` derives the expectation the same way the workspace
+   does (state.ins for the eight selects, state.range for the window), at the
+   moment of the assertion, which keeps expectation and render in agreement
+   whatever has happened to the store in between. */
+const insightsFor = (overrides) => {
+  const s = Object.assign({}, baseState, overrides);
+  return QB.analytics.compute(Object.assign({}, s.ins, { range: s.range }));
+};
 
 /* A survey mid-flight: `answers` overrides are merged onto a blank sheet. */
 const survey = (over) => {
@@ -106,11 +137,14 @@ const survey = (over) => {
 
 /* Boot render happened during load. */
 check('app mounts on load', appEl.innerHTML.includes('proto-bar'));
-check('boot screen is alumni', appEl.innerHTML.includes('Good morning, Layla.'));
+check('boot screen is alumni', appEl.innerHTML.includes('Good morning, Faisal.'));
 assertBalanced('boot markup', appEl.innerHTML);
 
 const alumni = render('alumni');
 assertBalanced('alumni', alumni);
+check('alumni: the greeting names the viewer', alumni.includes('Good morning, Faisal.'));
+check('alumni: the lede reads as an alum of a past cycle',
+  alumni.includes('A year on from your QSTP internship') && !alumni.includes('Week 7 of'));
 check('alumni: 4 spotlight entries, stacked', (alumni.match(/class="spot-row"/g) || []).length === 4);
 check('alumni: 4 events', (alumni.match(/class="event"/g) || []).length === 4);
 check('alumni: events run the full side column', alumni.includes('panel--stretch'));
@@ -119,9 +153,117 @@ check('alumni: no points anywhere', !/\bpts\b|class="points/.test(alumni));
 check('alumni: Events is off the nav', !alumni.includes('>Events</a>'));
 check('alumni: no public-profile button', !alumni.includes('View your public profile'));
 check('alumni: four nav tabs', (alumni.match(/class="navtab/g) || []).length === 4);
-check('alumni: the survey is not up until asked for', !alumni.includes('survey-scrim'));
+check('alumni: no dialog is up until asked for', !alumni.includes('class="scrim'));
 check('alumni: Update my status opens it', alumni.includes('data-act="openSurvey"'));
 check('alumni: the three gated tabs are marked', (alumni.match(/navtab--locked/g) || []).length === 3);
+
+/* ── The profile modal ────────────────────────────────────────────── */
+
+check('alumni: the identity block opens the profile',
+  alumni.includes('data-act="openProfile"') && alumni.includes('aria-haspopup="dialog"'));
+
+const profile = render('alumni', { profile: true });
+assertBalanced('alumni/profile', profile);
+check('profile: it is a modal dialog over a blurred page',
+  profile.includes('class="scrim') && profile.includes('role="dialog"') &&
+  profile.includes('aria-modal="true"'));
+check('profile: the scrim dismisses it', profile.includes('scrim--closes'));
+check('profile: it names the viewer and their cycle',
+  profile.includes('Faisal Elbadri') && profile.includes(QB.store.viewer().cycle));
+check('profile: it offers a career update', profile.includes('data-act="openSurvey"'));
+check('profile: it can be closed', profile.includes('data-act="closeProfile"'));
+check('profile: it draws a timeline', profile.includes('class="journey"'));
+
+/* The timeline is a record, so it has to start where the record starts. */
+const profileRecord = QB.store.viewer();
+const milestones = QB.profileMilestones(profileRecord);
+check('timeline: it begins at the QSTP internship',
+  milestones[0].kind === 'origin' && /QSTP internship at Snoonu/.test(milestones[0].title));
+check('timeline: the origin is dated by the internship, not by today',
+  milestones[0].when === profileRecord.progression[profileRecord.progression.length - 1].year);
+check('timeline: it ends on the latest status confirmation',
+  milestones[milestones.length - 1].kind === 'update');
+check('timeline: every milestone renders a row',
+  (profile.match(/class="journey__item/g) || []).length === milestones.length);
+
+/* Completing the programme is what makes someone an alum, so it is on every
+   alum's record and on no intern's — and it wears a cap rather than a dot. */
+check('timeline: the viewer is an alum, so the programme is marked complete',
+  milestones.some((m) => m.kind === 'graduation'));
+check('timeline: the completion is dated after the internship, not before',
+  milestones.filter((m) => m.kind === 'graduation')[0].key > milestones[0].key);
+check('profile: the completed checkpoint is drawn as a graduation cap',
+  profile.includes('journey__cap') && profile.includes('🎓'));
+check('profile: only that one row wears a cap',
+  (profile.match(/journey__cap/g) || []).length === 1);
+
+const everyone = QB.store.data.people;
+check('timeline: every alum has a completed programme',
+  everyone.filter((p) => p.kind === 'alumni')
+    .every((p) => QB.profileMilestones(p).some((m) => m.kind === 'graduation')));
+check('timeline: no current intern has one yet',
+  everyone.filter((p) => p.kind === 'intern')
+    .every((p) => !QB.profileMilestones(p).some((m) => m.kind === 'graduation')));
+
+/* The ordering rule, over the whole roster rather than one lucky record:
+   opens at the internship, never runs backwards, undated milestones last. */
+const misordered = everyone.filter((person) => {
+  const rows = QB.profileMilestones(person);
+  if (!rows.length || rows[0].kind !== 'origin') return true;
+  let previous = -Infinity;
+  let undatedSeen = false;
+  return rows.some((row) => {
+    if (row.key == null) { undatedSeen = true; return false; }
+    if (undatedSeen || row.key < previous) return true;
+    previous = row.key;
+    return false;
+  });
+});
+check('timeline: all 1,842 records are ordered, oldest first', misordered.length === 0);
+
+/* A QSTP milestone cannot predate joining QSTP. */
+check('timeline: nothing on a record predates its internship',
+  everyone.every((person) => {
+    const rows = QB.profileMilestones(person);
+    return rows.every((row) => row.key == null || row.key >= rows[0].key);
+  }));
+
+/* Someone with a long record must pick up the other milestone kinds. */
+const richest = QB.store.data.people
+  .map((p) => ({ p, m: QB.profileMilestones(p) }))
+  .sort((a, b) => b.m.length - a.m.length)[0];
+check('timeline: a full career carries more than the two an intern has',
+  richest.m.length > milestones.length);
+check('timeline: it still begins at the internship for them',
+  richest.m[0].kind === 'origin');
+check('timeline: it runs oldest to newest',
+  richest.m.every((item, i, all) =>
+    i === 0 || (all[i - 1].key == null ? Infinity : all[i - 1].key) <= (item.key == null ? Infinity : item.key)));
+check('timeline: dated milestones carry their date, undated ones read as current',
+  richest.m.every((item) => (item.key == null) === (item.when == null)));
+
+/* Every referral the store credits to a person must appear on their timeline. */
+const referrer = QB.store.data.people.filter((p) =>
+  QB.store.data.referrals.some((r) => r.referrerId === p.id))[0];
+if (referrer) {
+  const theirs = QB.store.data.referrals.filter((r) => r.referrerId === referrer.id).length;
+  check('timeline: referrals they made are on it',
+    QB.profileMilestones(referrer).filter((m) => m.kind === 'referral').length >= theirs);
+}
+
+/* A founder in the pipeline gets the incubation milestone. */
+const incubated = QB.store.data.people.filter((p) => p.status === 'Founder' && p.incubated)[0];
+check('timeline: entering QSTP incubation is a milestone',
+  QB.profileMilestones(incubated).some((m) => m.kind === 'founder' &&
+    m.title.includes(incubated.startup)));
+
+/* The survey outranks the profile — it is the one dialog that can compel. */
+const both = render('alumni', {
+  profile: true,
+  survey: { open: true, gated: 'Ideastorm', step: 0, answers: QB.blankAnswers() }
+});
+check('profile: a gated survey is never covered by it',
+  (both.match(/role="dialog"/g) || []).length === 1 && !both.includes('data-act="closeProfile"'));
 
 /* ── The status survey ────────────────────────────────────────────── */
 
@@ -129,7 +271,7 @@ const S = QB.surveyData;
 
 const q1 = survey();
 assertBalanced('alumni/survey-core', q1);
-check('survey: the page behind it is blurred', q1.includes('class="survey-scrim"'));
+check('survey: the page behind it is blurred', q1.includes('class="scrim"'));
 check('survey: it is a modal dialog', q1.includes('role="dialog"') && q1.includes('aria-modal="true"'));
 check('survey: six statuses to choose from', (q1.match(/class="opt[ "]/g) || []).length === 6);
 check('survey: every status carries its emoji',
@@ -283,17 +425,20 @@ check('confirmed: an employed answer reads as a role at a company',
     }) }
   }).includes('Backend Engineer at Snoonu · Germany'));
 
-/* The express path: the status on file is still true, so no survey is needed. */
+/* The express path: the status on file is still true, so no survey is needed.
+   What the card shows now comes off the seeded store record, not off
+   QB.data.viewer — resolve it the same way statusCard does. */
+const viewerRecord = QB.store.data.people.find((p) => p.id === QB.store.data.meta.viewerId);
 const unasked = render('alumni');
 check('as-is: the card asks about the status on file',
-  unasked.includes(QB.data.viewer.currentStatus + ' — still right?') &&
-  unasked.includes('last confirmed ' + QB.data.viewer.statusSince));
+  unasked.includes(QB.statusLine(viewerRecord) + ' — still right?') &&
+  unasked.includes('last confirmed ' + viewerRecord.lastUpdate));
 check('as-is: confirming it is one click', unasked.includes('data-act="confirmStatus"'));
 
 const asIs = render('alumni', { statusUpdated: true, statusSource: 'confirmed' });
 assertBalanced('alumni/confirmed-as-is', asIs);
 check('as-is: the status on file is kept, not blanked',
-  asIs.includes(QB.data.viewer.currentStatus) && !asIs.includes('still right?'));
+  asIs.includes(QB.statusLine(viewerRecord)) && !asIs.includes('still right?'));
 check('as-is: it counts as this session’s update',
   !asIs.includes('navtab--locked') && asIs.includes('confirmed a moment ago'));
 check('as-is: it does not claim answers that were never given',
@@ -348,14 +493,24 @@ check('referrals: compose form has all three fields',
   check('tab ' + i + ': no unwired data-act on filters', !/data-act=""/.test(markup));
 });
 check('alumni: an unknown tab falls back to Home',
-  render('alumni', { tab: 'Nope' }).includes('Good morning, Layla.'));
+  render('alumni', { tab: 'Nope' }).includes('Good morning, Faisal.'));
 
 const mgmt = render('management');
+const a12 = insightsFor();
 assertBalanced('management/outcomes', mgmt);
 check('management: 5-KPI strip', (mgmt.match(/class="kpi"/g) || []).length === 5);
 check('management: 5 sidebar sections', (mgmt.match(/class="side-nav__tab/g) || []).length === 5);
 check('management: 9 global filters', (mgmt.match(/<select/g) || []).length === 9);
+/* Every one of the nine now writes back to the store — none is decoration. */
+check('management: all 9 filters are wired',
+  (mgmt.match(/<select[^>]*data-field="/g) || []).length === 9);
+check('management: the rail can be put back', mgmt.includes('data-act="resetInsights"'));
 check('management: range label', mgmt.includes('Showing 12 months'));
+check('management: the lede counts the roster it computed from',
+  mgmt.includes(a12.total.toLocaleString() + ' tracked alumni') &&
+  a12.total === QB.store.data.people.length);
+check('management: the KPI strip is the computed one',
+  a12.kpis.every((k) => mgmt.includes(k.value) && mgmt.includes(k.note)));
 
 /* The reporting range moved off the appbar into the insights filter rail, and
    is the one filter there that is actually wired. */
@@ -366,6 +521,7 @@ check('management: range is a filter in the rail',
 check('management: the rail select carries the current range',
   /<option selected>12 months<\/option>/.test(mgmt));
 check('management: export lives in the insights tab', mgmt.includes('Export all insights'));
+check('management: the export button triggers the report', mgmt.includes('data-act="exportInsights"'));
 
 const range90 = render('management', { range: '90 days' });
 assertBalanced('management/range-90', range90);
@@ -376,9 +532,12 @@ check('management: changing the range is reflected back',
 const progRange = render('management', { mgmtNav: 'Programmes' });
 check('management: the range filter is scoped to Insights',
   !progRange.includes('Showing 12 months') && !progRange.includes('Export all insights'));
-check('management: 7-slice outcome legend', (mgmt.match(/class="legend__row"/g) || []).length === 7);
-check('management: donut centre reflects the slices in work', mgmt.includes('68%'));
-check('management: conversion headline', mgmt.includes('7.2%'));
+check('management: the outcome legend has a row per status in the data',
+  (mgmt.match(/class="legend__row"/g) || []).length === a12.outcomes.length &&
+  a12.outcomes.every((s) => mgmt.includes(s.label)));
+check('management: donut centre reflects the slices in work',
+  mgmt.includes('>' + a12.outcomeCentre.value + '</text>'));
+check('management: conversion headline', mgmt.includes(a12.kpis[2].value));
 
 /* The donut must consume the whole circumference. */
 const dashes = [...mgmt.matchAll(/stroke-dasharray="([\d.]+) ([\d.]+)"/g)].map(m => +m[1]);
@@ -386,28 +545,144 @@ const circumference = 2 * Math.PI * 70;
 check('management: donut slices sum to the full ring',
   Math.abs(dashes.reduce((a, b) => a + b, 0) - circumference) < 0.5);
 
+/* ── The filter rail actually filters ─────────────────────────────────
+   One cycle, one status, and one combination that cannot describe anybody. */
+
+const cycleTab = { ins: { cycle: 'Summer ’26' } };
+const currentCycle = render('management', cycleTab);
+const aCycle = insightsFor(cycleTab);
+assertBalanced('management/insights-cycle', currentCycle);
+check('filters: a cycle narrows the roster to that intake',
+  aCycle.total === 200 &&
+  currentCycle.includes(aCycle.total.toLocaleString() + ' of ' +
+    QB.store.data.people.length.toLocaleString() + ' alumni in view'));
+check('filters: the current cycle is one solid slice of interns',
+  aCycle.outcomes.length === 1 && aCycle.outcomes[0].label === 'Current interns' &&
+  (currentCycle.match(/class="legend__row"/g) || []).length === 1 &&
+  currentCycle.includes('>100%</text>'));
+
+const employedOnly = { ins: { outcome: 'Employed' } };
+const employedView = render('management', employedOnly);
+const aEmployed = insightsFor(employedOnly);
+assertBalanced('management/insights-outcome', employedView);
+check('filters: an outcome changes how many slices there are',
+  (employedView.match(/class="legend__row"/g) || []).length === aEmployed.outcomes.length &&
+  aEmployed.outcomes.length < a12.outcomes.length && aEmployed.total < a12.total);
+
+/* Employed current interns is empty by construction — the one selection most
+   likely to divide by zero. Every tab has to hold up under it, not just the
+   one that happens to be open. */
+const impossible = { ins: { outcome: 'Employed', userType: 'Current interns' } };
+const emptyView = render('management', impossible);
+assertBalanced('management/insights-empty', emptyView);
+check('filters: an impossible combination reads as empty, not as broken',
+  insightsFor(impossible).total === 0 && !/NaN|Infinity|undefined/.test(emptyView) &&
+  emptyView.includes('0 of ' + QB.store.data.people.length.toLocaleString() + ' alumni in view') &&
+  emptyView.includes('Nobody in this selection has a current place to report.'));
+check('filters: no tab divides by an empty selection',
+  ['Outcomes', 'Engagement', 'Pipeline', 'Community', 'Partners'].every((tab) => {
+    const markup = render('management', Object.assign({ insightsTab: tab }, impossible));
+    assertBalanced('management/insights-empty/' + tab, markup);
+    return !/NaN|Infinity|undefined/.test(markup);
+  }));
+
+/* The range is a window over what happened, not over who exists: it scopes the
+   dated collections and the series lengths, and leaves the distributions over
+   people — the donut above all — exactly where they were.
+
+   The referral half of the Pipeline tab is what the window actually moves
+   here. Every seeded offer's `posted` reads as three months old or less, so
+   even the 90-day window holds all twenty of them and the offer funnel is the
+   same in every range; the referrals carry real dates and thin out. */
+const pipe90 = render('management', { insightsTab: 'Pipeline', range: '90 days' });
+const pipeAll = render('management', { insightsTab: 'Pipeline', range: 'All time' });
+const ref90 = insightsFor({ range: '90 days' }).pipeline;
+const refAll = insightsFor({ range: 'All time' }).pipeline;
+const ringOf = (markup) => (markup.match(/stroke-dasharray="[^"]*"/g) || []).join('|');
+
+check('filters: a narrower range submits fewer referrals to the pipeline',
+  pipe90 !== pipeAll &&
+  Number(ref90.refStats[0].value) < Number(refAll.refStats[0].value) &&
+  pipe90.includes('>' + ref90.refStats[0].value + '<') &&
+  pipeAll.includes('>' + refAll.refStats[0].value + '<'));
+check('filters: the range leaves the outcome donut alone',
+  ringOf(render('management', { range: '90 days' })) ===
+    ringOf(render('management', { range: 'All time' })));
+
 const engagementTab = render('management', { insightsTab: 'Engagement' });
 assertBalanced('management/engagement', engagementTab);
 check('engagement: DAU/WAU/MAU tiles', (engagementTab.match(/class="stat"/g) || []).length === 3);
-check('engagement: at-risk queue', engagementTab.includes('Ali Mansour'));
+check('engagement: at-risk queue names the people who just went quiet',
+  a12.engagement.atRisk.length === 4 &&
+  a12.engagement.atRisk.every((r) => engagementTab.includes(r.name) && engagementTab.includes(r.cohort)));
 
 const pipelineTab = render('management', { insightsTab: 'Pipeline' });
 assertBalanced('management/pipeline', pipelineTab);
 check('pipeline: 3-stage hiring funnel', (pipelineTab.match(/class="funnel__row"/g) || []).length === 3);
-check('pipeline: application volume', pipelineTab.includes('531'));
-check('pipeline: 6 skills-gap pairs', (pipelineTab.match(/class="pair"/g) || []).length === 6);
-check('pipeline: referrer leaderboard', pipelineTab.includes('Rashid Tamim'));
+check('pipeline: application volume',
+  pipelineTab.includes(a12.pipeline.funnel[0].n.toLocaleString()));
+check('pipeline: a skills-gap pair per skill in demand',
+  (pipelineTab.match(/class="pair"/g) || []).length === a12.pipeline.skillsGap.length);
+check('pipeline: referrer leaderboard',
+  a12.pipeline.topReferrers.every((r) => pipelineTab.includes(r.name)));
 
 const communityTab = render('management', { insightsTab: 'Community' });
 assertBalanced('management/community', communityTab);
 check('community: 4-stage formation funnel', (communityTab.match(/class="funnel__row"/g) || []).length === 4);
-check('community: spotlight impact', communityTab.includes('+212%'));
-check('community: 4 events tracked', (communityTab.match(/class="td-strong"/g) || []).length === 4);
+check('community: spotlight impact', communityTab.includes(a12.community.spotlight.views));
+check('community: every event in the window is tracked',
+  (communityTab.match(/class="td-strong"/g) || []).length === a12.community.events.length &&
+  a12.community.events.every((e) => communityTab.includes(e.title)));
 
 const partnersTab = render('management', { insightsTab: 'Partners' });
 assertBalanced('management/partners', partnersTab);
-check('partners: org activity table', partnersTab.includes('Snoonu'));
-check('partners: dormant list', partnersTab.includes('Baladna Digital'));
+check('partners: org activity table',
+  a12.partners.orgTable.every((row) => partnersTab.includes(row.org)));
+check('partners: dormant list',
+  a12.partners.dormant.length > 0 &&
+  a12.partners.dormant.every((row) => partnersTab.includes(row.name)));
+
+/* ── The printed report ────────────────────────────────────────────────
+   QB.buildReport is the "Export all insights" button's whole job: one
+   document holding all five sections, computed off the same
+   QB.insightFilters merge insightsView reads, at whatever the rail is set
+   to when the button is pressed. */
+
+const SECTION_NAMES = ['Outcomes', 'Engagement', 'Pipeline', 'Community', 'Partners'];
+
+const report12 = String(QB.buildReport(baseState));
+assertBalanced('report/default', report12);
+check('report: all five sections are present, in order',
+  SECTION_NAMES.every((name) => report12.includes('>' + name + '<')) &&
+  SECTION_NAMES.every((name, i) => i === 0 ||
+    report12.indexOf('>' + SECTION_NAMES[i - 1] + '<') < report12.indexOf('>' + name + '<')));
+check('report: carries the KPI strip', (report12.match(/class="kpi"/g) || []).length === 5);
+check('report: states the current range in words',
+  report12.includes('Reporting window: last 12 months'));
+check('report: a clean rail reads as no filters',
+  report12.includes('Filters: none — full roster'));
+check('report: the report node is never part of the app render',
+  !appEl.innerHTML.includes('id="report"') && !mgmt.includes('id="report"'));
+
+const report90 = String(QB.buildReport(Object.assign({}, baseState, { range: '90 days' })));
+assertBalanced('report/range-90', report90);
+check('report: the range in words follows state.range',
+  report90.includes('Reporting window: last 90 days'));
+
+/* A non-default filter has to show up on the cover, and the body has to be
+   computed under it — not just labelled with it. */
+const reportCycleState = Object.assign({}, baseState,
+  { ins: Object.assign({}, baseState.ins, { cycle: 'Summer ’26' }) });
+const reportCycle = String(QB.buildReport(reportCycleState));
+const aReportCycle = QB.analytics.compute(QB.insightFilters(reportCycleState));
+assertBalanced('report/cycle-filter', reportCycle);
+check('report: a non-default filter is named on the cover',
+  reportCycle.includes('Filters: Cycle Summer ’26') && !reportCycle.includes('Filters: none'));
+check('report: the body is computed from the same filtered subset',
+  aReportCycle.total === 200 &&
+  reportCycle.includes(aReportCycle.total.toLocaleString() + ' of ' +
+    QB.store.data.people.length.toLocaleString() + ' alumni in view') &&
+  aReportCycle.kpis.every((k) => reportCycle.includes(k.value)));
 
 const programmes = render('management', { mgmtNav: 'Programmes' });
 assertBalanced('management/programmes', programmes);
@@ -564,6 +839,218 @@ check('my offers: publish enabled once a title is typed',
 const injected = render('organization', { query: '<img src=x onerror=alert(1)>' });
 check('organization: user input is escaped', !injected.includes('<img src=x'));
 assertBalanced('organization/injection', injected);
+
+/* ── The seeded store ─────────────────────────────────────────────────
+   Nothing renders from QB.store yet — the screens still read QB.data. What
+   is asserted here is that the fixture underneath them is the right shape,
+   survives a round-trip through storage, and rebuilds identically. */
+
+const STORE_KEY = 'qstpBeyond.seed.v3';
+const store = QB.store.data;
+
+check('store: the roster is the full 1,842', store.people.length === 1842);
+check('store: six cycles, stamped in the meta',
+  store.meta.cycles.length === 6 && store.meta.version === 3 && store.meta.seed === 20260731);
+check('store: the cycles on the meta are the cycles on the people',
+  store.meta.cycles.every((c) => store.people.some((p) => p.cycle === c)) &&
+  store.people.every((p) => store.meta.cycles.includes(p.cycle)));
+check('store: the current cycle is the last one', store.meta.currentCycle === 'Summer ’26');
+
+const current = store.people.filter((p) => p.cycle === store.meta.currentCycle);
+check('store: 200 people are in the current cycle', current.length === 200);
+check('store: everyone in the current cycle is a current intern',
+  current.every((p) => p.kind === 'intern' && p.status === 'Intern'));
+check('store: nobody outside it is an intern',
+  store.people.filter((p) => p.kind === 'intern').length === current.length);
+
+/* The prototype viewer is not a separate fixture — he is the first
+   'Summer ’26' record (id 1643), turned into a fixed identity. The
+   transform replaces that record in place, so the roster stays 1,842. */
+const viewerId = store.meta.viewerId;
+const seededViewer = store.people.find((p) => p.id === viewerId);
+check('store: meta.viewerId resolves to Faisal Elbadri, the alum',
+  viewerId === 711 && !!seededViewer && seededViewer.name === 'Faisal Elbadri' &&
+  seededViewer.initials === 'FE' && seededViewer.status === 'Employed' && seededViewer.kind === 'alumni');
+check('store: the viewer is an alum of a past cycle, working at Snoonu',
+  seededViewer.cycle === 'Summer ’25' && seededViewer.cycle !== store.meta.currentCycle &&
+  seededViewer.employer === 'Snoonu' && seededViewer.employerKind === 'Host startup');
+check('store: the transform replaced a record rather than appending one',
+  store.people.filter((p) => p.id === 711).length === 1);
+/* Overwriting inside a cycle rather than appending keeps every intake exact. */
+check('store: no cycle lost or gained a place to the viewer transform',
+  store.meta.cycles.map((c) => store.people.filter((p) => p.cycle === c).length)
+    .join(',') === '348,362,340,330,262,200');
+
+check('store: 8 partners', store.partners.length === 8);
+const noor = store.partners.find((p) => p.name === 'NOOR');
+check('store: NOOR is one of them', !!noor);
+check('store: NOOR is credited to Ideastorm', !!noor && noor.note.includes('Ideastorm'));
+
+const snoonu = store.partners.find((p) => p.name === 'Snoonu');
+const snoonuRoster = store.people.filter((p) => p.employer === 'Snoonu');
+check('store: Snoonu’s partner alumni stat counts the viewer',
+  !!snoonu && snoonuRoster.some((p) => p.id === viewerId) &&
+  snoonu.stats.alumni === snoonuRoster.length);
+
+check('store: 20 offers', store.offers.length === 20);
+check('store: every funnel narrows at each stage',
+  store.offers.every((o) => o.funnel.applied >= o.funnel.shortlisted &&
+    o.funnel.shortlisted >= o.funnel.interviewed &&
+    o.funnel.interviewed >= o.funnel.hired && o.funnel.hired >= 0));
+check('store: every offer belongs to a partner',
+  store.offers.every((o) => store.partners.some((p) => p.name === o.org)));
+
+const peopleById = new Map(store.people.map((p) => [p.id, p]));
+check('store: 12 ideas', store.ideas.length === 12);
+check('store: every idea owner resolves to a person',
+  store.ideas.every((i) => peopleById.has(i.ownerId)));
+check('store: the denormalized owner name matches the record',
+  store.ideas.every((i) => peopleById.get(i.ownerId).name === i.owner));
+
+/* Persistence: the boot above should have written the world it handed back. */
+check('store: the seed was persisted under its key', typeof cache[STORE_KEY] === 'string');
+check('store: what was persisted is what booted',
+  JSON.stringify(JSON.parse(cache[STORE_KEY])) === JSON.stringify(store));
+
+/* A reload reads the cache instead of regenerating — same JSON either way,
+   which is exactly why a corrupt cache can be thrown away without ceremony. */
+const cached = JSON.parse(cache[STORE_KEY]);
+check('store: the cached copy is a complete world',
+  ['meta', 'people', 'partners', 'offers', 'jobs', 'ideas', 'events', 'referrals', 'spotlight']
+    .every((k) => cached[k] !== undefined));
+
+const before = JSON.stringify(store);
+const regenerated = QB.store.reset();
+check('store: reset rewrites the key', typeof cache[STORE_KEY] === 'string');
+check('store: the fixed seed makes reset byte-identical',
+  JSON.stringify(regenerated) === before);
+check('store: reset swaps in the fresh data', QB.store.data === regenerated);
+
+/* ── QB.applyAnswers / QB.statusLine ──────────────────────────────────
+   Run against a throwaway clone of a seeded person, so nothing here
+   disturbs the store checks above or QB.store.data's identity. */
+
+const employedAnswers = Object.assign(QB.blankAnswers(), {
+  status: 'Employed', location: 'Qatar', company: 'Snoonu',
+  role: 'Backend Engineer', seniority: 'Senior'
+});
+const employedScratch = JSON.parse(JSON.stringify(store.people[0]));
+QB.applyAnswers(employedScratch, employedAnswers);
+check('applyAnswers: an Employed sheet sets role, employer, fresh and lastUpdate',
+  employedScratch.status === 'Employed' && employedScratch.role === 'Backend Engineer' &&
+  employedScratch.employer === 'Snoonu' && employedScratch.employerKind === 'Host startup' &&
+  employedScratch.fresh === true && employedScratch.lastUpdate === 'Jul 2026');
+check('applyAnswers: it unshifts a progression head for the new role',
+  employedScratch.progression[0].year === 'Jul 2026' &&
+  employedScratch.progression[0].title === 'Backend Engineer' &&
+  employedScratch.progression[0].org === 'Snoonu');
+
+const headCountAfterFirst = employedScratch.progression.length;
+QB.applyAnswers(employedScratch, employedAnswers);
+check('applyAnswers: repeating the same answers does not stack a duplicate head',
+  employedScratch.progression.length === headCountAfterFirst);
+
+const lookingScratch = JSON.parse(JSON.stringify(store.people[0]));
+lookingScratch.skills = ['Go', 'Python'];
+QB.applyAnswers(lookingScratch, Object.assign(QB.blankAnswers(), {
+  status: 'Looking', location: 'Qatar', lookingFor: ['Full-time'], skills: ['Figma', 'SQL']
+}));
+check('applyAnswers: a Looking sheet replaces skills',
+  JSON.stringify(lookingScratch.skills) === JSON.stringify(['Figma', 'SQL']) &&
+  lookingScratch.status === 'Looking' && lookingScratch.employer === null);
+
+check('statusLine: covers Intern and Founder',
+  QB.statusLine({ status: 'Intern', employer: 'Snoonu' }) === 'Intern at Snoonu' &&
+  QB.statusLine({ status: 'Founder', startup: 'Souq Stack', stage: 'Launched' }) ===
+    'Founder at Souq Stack · Launched');
+
+/* ── store.save() ──────────────────────────────────────────────────── */
+
+const saveTarget = QB.store.data.people.find((p) => p.id === QB.store.data.meta.viewerId);
+QB.applyAnswers(saveTarget, employedAnswers);
+QB.store.save();
+const savedCache = JSON.parse(cache[STORE_KEY]);
+const savedRecord = savedCache.people.find((p) => p.id === QB.store.data.meta.viewerId);
+check('store.save: the mutation reaches the stub cache',
+  !!savedRecord && savedRecord.status === 'Employed' && savedRecord.role === 'Backend Engineer' &&
+  savedRecord.employer === 'Snoonu' && savedRecord.lastUpdate === 'Jul 2026');
+
+/* ── Surviving a cache the code no longer understands ─────────────────
+   A version stamp is a promise about shape, not proof of one. A payload that
+   claims the current version but cannot answer "who is the viewer?" used to
+   throw inside statusCard, and because a screen is one expression that threw
+   away the entire page — the alumni dashboard rendered blank, prototype bar
+   and all. Both halves of that are now tested: the store refuses the payload,
+   and a screen that throws anyway is contained. */
+
+const goodCache = cache[STORE_KEY];
+
+/* Re-running store.js is exactly what a page load does, so poisoning the cache
+   and evaluating the module again tests the real read path rather than a
+   paraphrase of it. */
+const bootStoreWith = (payload) => {
+  cache[STORE_KEY] = payload;
+  vm.runInContext(fs.readFileSync(path.join(ROOT, 'src/store.js'), 'utf8'), sandbox,
+    { filename: 'src/store.js' });
+  return QB.store.data;
+};
+
+const poison = (mutate) => {
+  const parsed = JSON.parse(goodCache);
+  mutate(parsed);
+  return JSON.stringify(parsed);
+};
+
+[
+  ['an empty roster', (d) => { d.people = []; }],
+  ['a viewer id that resolves to nobody', (d) => { d.meta.viewerId = 999999; }],
+  ['a roster that is not an array', (d) => { d.people = {}; }],
+  ['a missing collection', (d) => { delete d.partners; }]
+].forEach(([label, mutate]) => {
+  const data = bootStoreWith(poison(mutate));
+  check('store: ' + label + ' is rebuilt, not trusted',
+    data.people.length === 1842 && !!QB.store.viewer());
+});
+
+/* Truncated JSON and a superseded stamp were already handled; assert they
+   still are, now that the shape gate sits behind them. */
+check('store: a truncated cache is still rebuilt',
+  bootStoreWith('{"meta":{"version":2},"people":').people.length === 1842);
+check('store: a superseded version is still rebuilt',
+  bootStoreWith(poison((d) => { d.meta.version = 1; })).people.length === 1842);
+
+bootStoreWith(goodCache);
+check('store: a sound cache is used as it stands',
+  QB.store.data.people.length === 1842 && QB.store.viewer().name === 'Faisal Elbadri');
+check('store: the viewer resolves through one shared door',
+  typeof QB.store.viewer === 'function' &&
+  QB.store.viewer().id === QB.store.data.meta.viewerId);
+
+/* ── The survey reaches the dashboard ─────────────────────────────────
+   The point of the whole wiring: a status saved on the alumni screen has to
+   move a figure on the management one. Kept until last because it changes the
+   viewer's record for good — every expectation above is derived at the moment
+   it is asserted, so this cannot reach back and unsettle them. */
+
+const founderAnswers = Object.assign(QB.blankAnswers(), {
+  status: 'Founder', location: 'Qatar', startup: 'Souq Stack',
+  stage: 'Launched', incubator: 'QSTP', ideastorm: 'Yes'
+});
+const foundersBefore = insightsFor().kpis[3].value;
+QB.applyAnswers(
+  QB.store.data.people.find((p) => p.id === QB.store.data.meta.viewerId),
+  founderAnswers
+);
+QB.store.save();
+const foundersAfter = insightsFor().kpis[3].value;
+const count = (value) => Number(String(value).replace(/,/g, ''));
+
+check('survey → dashboard: founding a startup lands on the KPI strip',
+  count(foundersAfter) === count(foundersBefore) + 1 &&
+  render('management').includes('>' + foundersAfter + '<'));
+check('survey → dashboard: the donut counts the new founder too',
+  insightsFor().outcomes.some((s) => s.label === 'Founded a company' &&
+    s.n === count(foundersAfter)));
 
 console.log(failures ? `\n${failures} failing check(s)` : '\nAll checks passed');
 process.exit(failures ? 1 : 0);

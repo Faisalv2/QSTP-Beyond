@@ -1,5 +1,6 @@
 /* Insights → Pipeline: the job-offer funnel and referral analytics.
-   Presentation only. */
+   Presentation only — the figures arrive computed on the analytics object the
+   workspace hands down. */
 (function (QB) {
   'use strict';
 
@@ -9,7 +10,7 @@
   function funnelPanel(p) {
     return html`<section class="panel" aria-label="Hiring funnel">
       <h2 class="panel__title panel__title--sm">Offer → application → hire</h2>
-      <p class="panel__sub">Across the 47 offers posted this quarter</p>
+      <p class="panel__sub">Across the ${p.jobStats[0].value} offers posted in this window</p>
       <hr class="rule">
       ${ui.funnel(p.funnel)}
     </section>`;
@@ -90,8 +91,8 @@
   }
 
   QB.insightTabs = QB.insightTabs || {};
-  QB.insightTabs.Pipeline = function () {
-    var p = QB.insights.pipeline;
+  QB.insightTabs.Pipeline = function (state, ins) {
+    var p = ins.pipeline;
     return html`${ui.statsRow(p.jobStats)}
     <div class="grid-analysis">${funnelPanel(p)}${offersPanel(p)}</div>
     ${skillsPanel(p)}

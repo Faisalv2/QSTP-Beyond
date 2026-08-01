@@ -189,8 +189,8 @@
     var gated = state.survey.gated;
     var copy = STEP_COPY[step];
 
-    return html`<div class="survey-scrim"></div>
-    <div class="survey-wrap" role="dialog" aria-modal="true" aria-labelledby="survey-title">
+    return html`<div class="scrim"></div>
+    <div class="modal-wrap" role="dialog" aria-modal="true" aria-labelledby="survey-title">
       <section class="survey">
         <header class="survey__head">
           <div class="survey__head-row">

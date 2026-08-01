@@ -1,15 +1,16 @@
 /* Insights → Outcomes: the ROI story, then data health & reporting.
-   Presentation only — every figure comes from the fixtures in data-insights.js. */
+   Presentation only — every figure arrives computed, in the analytics object
+   the workspace hands down, and is drawn here exactly as given. */
 (function (QB) {
   'use strict';
 
   var ui = QB.ui;
   var html = ui.html;
 
-  function distribution(d, ins) {
+  function distribution(ins) {
     return html`<section class="panel" aria-label="Outcome distribution">
       <h2 class="panel__title panel__title--sm">Outcome distribution</h2>
-      <p class="panel__sub">Current status of all ${d.trackedAlumni.toLocaleString()} tracked alumni</p>
+      <p class="panel__sub">Current status of the ${ins.total.toLocaleString()} people in this selection</p>
       <hr class="rule">
       <div class="donut-row">
         ${ui.donut(ins.outcomes, ins.outcomeCentre)}
@@ -27,20 +28,20 @@
     </section>`;
   }
 
-  function conversion(d) {
+  function conversion(ins) {
     return html`<section class="panel" aria-label="Hire-to-ecosystem conversion">
       <div class="panel__head panel__head--split">
         <div>
           <h2 class="panel__title panel__title--sm">Hire-to-ecosystem conversion</h2>
-          <p class="panel__sub">Interns who later joined an incubatee, founded, or entered the pipeline</p>
+          <p class="panel__sub">Share of each cycle now at a partner company or in incubation</p>
         </div>
         <p class="figure">
-          <span class="figure__value">${d.conversion.headline}</span>
-          <span class="figure__change">${d.conversion.change}</span>
+          <span class="figure__value">${ins.conversion.headline}</span>
+          <span class="figure__change">${ins.conversion.change}</span>
         </p>
       </div>
       <hr class="rule rule--snug">
-      ${ui.lineChart(d.conversion)}
+      ${ui.lineChart(ins.conversion)}
     </section>`;
   }
 
@@ -90,7 +91,7 @@
       <div class="panel__head panel__head--split">
         <div>
           <h2 class="panel__title panel__title--sm">Startups founded by alumni</h2>
-          <p class="panel__sub">Cumulative across all cohorts</p>
+          <p class="panel__sub">Cumulative across the intake cycles in view</p>
         </div>
         <p class="figure">
           <span class="figure__value">${ins.startups.total}</span>
@@ -124,12 +125,12 @@
   }
 
   function byCohort(ins) {
-    return html`<section class="panel" aria-label="Outcomes by cohort">
-      <h2 class="panel__title panel__title--sm">Outcomes by cohort</h2>
-      <p class="panel__sub">Batch-to-batch comparison of headline outcomes</p>
+    return html`<section class="panel" aria-label="Outcomes by cycle">
+      <h2 class="panel__title panel__title--sm">Outcomes by cycle</h2>
+      <p class="panel__sub">Intake-to-intake comparison of headline outcomes</p>
       <hr class="rule rule--table">
       <table class="table">
-        <thead><tr><th>Cohort</th><th>Employed</th><th>Founded</th><th>In ecosystem</th><th>Unreported</th></tr></thead>
+        <thead><tr><th>Cycle</th><th>Employed</th><th>Founded</th><th>In ecosystem</th><th>Unreported</th></tr></thead>
         <tbody>
           ${ins.byCohort.map(function (row) {
             return html`<tr>
@@ -201,7 +202,7 @@
       <p class="panel__sub">Alumni with no status update in 12+ months</p>
       <hr class="rule rule--table">
       <table class="table">
-        <thead><tr><th>Alum</th><th>Cohort</th><th>Last update</th><th><span class="sr-only">Actions</span></th></tr></thead>
+        <thead><tr><th>Alum</th><th>Cycle</th><th>Last update</th><th><span class="sr-only">Actions</span></th></tr></thead>
         <tbody>
           ${ins.staleQueue.map(function (row) {
             return html`<tr>
@@ -217,9 +218,8 @@
   }
 
   QB.insightTabs = QB.insightTabs || {};
-  QB.insightTabs.Outcomes = function (state, d) {
-    var ins = QB.insights;
-    return html`<div class="grid-analysis grid-analysis--lead">${distribution(d, ins)}${conversion(d)}</div>
+  QB.insightTabs.Outcomes = function (state, ins) {
+    return html`<div class="grid-analysis grid-analysis--lead">${distribution(ins)}${conversion(ins)}</div>
     <div class="grid-half">${timeToEmp(ins)}${retention(ins)}</div>
     <div class="grid-analysis">${employers(ins)}${startups(ins)}</div>
     <div class="grid-half">${progression(ins)}${byField(ins)}</div>

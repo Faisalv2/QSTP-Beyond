@@ -276,8 +276,10 @@
 
   /* A sidebar of single-select dropdowns. `filters` is [[label, options]…],
      or [label, options, field, current] for one that is wired to the store —
-     the rest are presentational until the filtering logic lands. */
-  function selectRail(label, filters, reset) {
+     the rest are presentational until the filtering logic lands. `resetAct`
+     is the action the reset button dispatches; without one the button is
+     still drawn, but does nothing. */
+  function selectRail(label, filters, reset, resetAct) {
     return html`<section class="panel side-filters" aria-label="${label}">
       <h2 class="eyebrow">${label}</h2>
       ${filters.map(function (f) {
@@ -293,7 +295,8 @@
           </select>
         </p>`;
       })}
-      ${reset ? html`<button type="button" class="btn btn-ghost btn-flush">${reset}</button>` : ''}
+      ${reset ? html`<button type="button" class="btn btn-ghost btn-flush"
+        ${resetAct ? raw('data-act="' + escape(resetAct) + '"') : ''}>${reset}</button>` : ''}
     </section>`;
   }
 

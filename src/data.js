@@ -22,14 +22,11 @@
   /* Tone names map to the --tone-*-bg / --tone-*-fg pairs in theme.css. */
   QB.data = {
     viewer: {
-      name: 'Layla Hassan',
-      initials: 'LH',
-      meta: 'Alumni · Cohort ’23',
+      name: 'Faisal Elbadri',
+      initials: 'FE',
+      meta: 'Alumni · Summer ’25',
       profileComplete: 80,
-      today: 'Wednesday, 30 July',
-      /* The status on file — what "Yes, still accurate" confirms. */
-      currentStatus: 'Backend Engineer at Snoonu',
-      statusSince: 'Mar 2024'
+      today: 'Friday, 31 July'
     },
 
     spotlight: [
@@ -84,7 +81,7 @@
     ],
 
     matchSkills: ['Go', 'Postgres', 'Kubernetes', 'gRPC', 'SQL'],
-    matchNote: 'Backend Engineer · Cohort ’23 · Doha. Add Terraform and Arabic UX to reach four more roles.',
+    matchNote: 'Software Engineer at Snoonu · Summer ’25 · Doha. Add Terraform and Arabic UX to reach four more roles.',
 
     savedRoles: [
       { title: 'Founding Engineer', company: 'Fluidic', meta: 'saved 3 days ago' },
@@ -160,19 +157,6 @@
     opsViewer: { name: 'Dana Al-Mansouri', initials: 'DM', meta: 'Programme operations' },
 
     trackedAlumni: 1842,
-
-    conversion: {
-      name: 'Hire-to-ecosystem conversion',
-      headline: '7.2%',
-      change: '+0.8 pt QoQ',
-      max: 8,
-      series: [
-        { label: 'Q4·23', value: 3.1 }, { label: 'Q1·24', value: 3.6 },
-        { label: 'Q2·24', value: 4.2 }, { label: 'Q3·24', value: 4.0 },
-        { label: 'Q4·24', value: 5.1 }, { label: 'Q1·25', value: 5.9 },
-        { label: 'Q2·25', value: 6.5 }, { label: 'Q3·25', value: 7.2 }
-      ]
-    },
 
     adminEvents: [
       { title: 'Founders’ Breakfast', date: '4 Aug 2026', reg: 62, cap: 80, status: 'Live', tone: 'lime' },

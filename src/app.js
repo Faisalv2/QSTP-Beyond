@@ -34,12 +34,23 @@
     offer: { title: '', loc: '', pay: '', skills: '', type: 'Full-time', prioritise: true },
     offers: QB.data.liveOffers.slice(),
 
+    /* The management Insights filter rail. Its `range` member is never read —
+       `state.range` above stays the single source for the time window, since
+       the appbar and the rail have to agree on one value — but it is left in
+       place so this object is exactly the shape QB.analytics.compute wants. */
+    ins: QB.analytics.defaults(),
+
     /* The status survey. `statusUpdated` is per session: the three gated tabs
        stay shut until it is true, and nothing here is persisted. */
     statusUpdated: false,
     statusSource: null,
-    survey: { open: false, gated: null, step: 0, answers: QB.blankAnswers() }
+    survey: { open: false, gated: null, step: 0, answers: QB.blankAnswers() },
+    profile: false
   };
+
+  /* The one seeded person the survey and the home card write onto and read
+     from. The store owns the resolution so there is a single answer to it. */
+  function viewer() { return QB.store.viewer(); }
 
   /* ── The status survey ───────────────────────────────────────────── */
 
@@ -51,6 +62,10 @@
     state.survey.open = true;
     state.survey.gated = gatedTab || null;
     state.survey.step = 0;
+    /* Two dialogs never stack; the survey takes over from the profile that
+       usually launched it, and closing it returns to the screen, not to a
+       half-remembered modal underneath. */
+    state.profile = false;
     /* The nav has to be on screen for the way out of a gated survey to exist. */
     if (typeof window !== 'undefined' && window.scrollTo) window.scrollTo(0, 0);
   }
@@ -59,6 +74,27 @@
     state.survey.open = false;
     state.survey.gated = null;
     state.survey.step = 0;
+    state.profile = false;
+  }
+
+  /* ── Export report ───────────────────────────────────────────────────
+     #report is a print artifact, not a screen: it lives outside #app so a
+     re-render of the app never clobbers it (see styles/app.css — it is
+     display:none on screen and only laid out under @media print), and it is
+     created lazily so the Node smoke harness, whose document stub has no
+     createElement, never has to run this path at all. */
+  var reportEl = null;
+  function reportNode() {
+    if (reportEl) return reportEl;
+    reportEl = document.createElement('div');
+    reportEl.id = 'report';
+    reportEl.className = 'report';
+    document.body.appendChild(reportEl);
+    /* Registered once, on first export: the report is scratch space, so it
+       is emptied the moment the print dialog closes rather than lingering
+       as dead markup until the next export overwrites it. */
+    window.addEventListener('afterprint', function () { reportEl.innerHTML = ''; });
+    return reportEl;
   }
 
   /* ── Actions ─────────────────────────────────────────────────────── */
@@ -78,9 +114,31 @@
       closeSurvey();
     },
     openSurvey: function () { openSurvey(null); },
+    /* A gated survey has to be answered or navigated away from, so it does
+       not surrender the screen to a dialog the reader can simply dismiss. */
+    openProfile: function () {
+      if (state.survey.open && state.survey.gated) return;
+      state.survey.open = false;
+      state.profile = true;
+      if (typeof window !== 'undefined' && window.scrollTo) window.scrollTo(0, 0);
+    },
+    closeProfile: function () { state.profile = false; },
+    /* The way out of a screen whose saved data no longer matches the code. */
+    resetData: function () {
+      QB.store.reset();
+      state.statusUpdated = false;
+      state.statusSource = null;
+      state.survey.answers = QB.blankAnswers();
+    },
     /* The express path: the status on file is still true, so confirming it
-       counts as this session's update and opens the gated tabs. */
+       counts as this session's update and opens the gated tabs. The record
+       itself still gets a fresh timestamp — "still accurate" is itself an
+       update, just not one that changes what it says. */
     confirmStatus: function () {
+      var v = viewer();
+      v.fresh = true;
+      v.lastUpdate = 'Jul 2026';
+      QB.store.save();
       state.statusUpdated = true;
       state.statusSource = 'confirmed';
     },
@@ -113,6 +171,9 @@
 
       if (state.survey.step < steps.length - 1) { state.survey.step += 1; return; }
 
+      QB.applyAnswers(viewer(), answers);
+      QB.store.save();
+
       state.statusUpdated = true;
       state.statusSource = 'survey';
       var gated = state.survey.gated;
@@ -124,6 +185,22 @@
     selectAlum: function (id) { state.alumId = Number(id); },
     selectOrg: function (id) { state.orgId = Number(id); },
     range: function (value) { state.range = value; },
+    /* Both halves of the rail go back at once: the eight selects live on
+       state.ins, the time range on state.range. */
+    resetInsights: function () {
+      state.ins = QB.analytics.defaults();
+      state.range = '12 months';
+    },
+    /* Builds the full report at the current filter selection and hands the
+       browser's print dialog the job of turning it into a PDF — every
+       browser's "Save as PDF" does that for free, and the charts are inline
+       SVG so they come out as vectors. Guarded so calling this under the
+       Node smoke harness, which has no window.print, is a no-op rather than
+       a crash. */
+    exportInsights: function () {
+      reportNode().innerHTML = String(QB.buildReport(state));
+      if (typeof window.print === 'function') window.print();
+    },
     adminTab: function (value) { state.adminTab = value; },
     feature: function (id) { state.featured[id] = !state.featured[id]; },
     avail: function (value) { state.avail = value; },
@@ -180,10 +257,16 @@
   };
 
   /* `survey.company` and friends write straight into the answer sheet rather
-     than needing an entry each. */
+     than needing an entry each; `ins.cycle` and friends do the same into the
+     insights filter object, which is why the rail can grow a select without
+     this file growing a line. */
   function setField(name, value) {
     if (name.indexOf('survey.') === 0) {
       state.survey.answers[name.slice(7)] = value;
+      return true;
+    }
+    if (name.indexOf('ins.') === 0) {
+      state.ins[name.slice(4)] = value;
       return true;
     }
     if (!fields[name]) return false;
@@ -246,13 +329,41 @@
     try { el.setSelectionRange(snapshot.start, snapshot.end); } catch (e) { /* ditto */ }
   }
 
+  /* A screen is one expression, so anything that throws inside it takes the
+     whole page down — including the prototype bar you would use to navigate
+     away from the broken screen. Catching here trades a blank window for a
+     readable failure and a way out: the other screens still work, and the
+     seed can be rebuilt without opening devtools. */
+  function screenMarkup() {
+    try {
+      return html`<main class="screen">${QB.screens[state.screen](state)}</main>`;
+    } catch (error) {
+      if (window.console && console.error) console.error('[QSTP Beyond]', error);
+      return html`<main class="screen"><div class="page">
+        <div class="page-head"><div>
+          <p class="page-head__kicker">Something went wrong</p>
+          <h1 class="h1--sm">This screen could not be drawn.</h1>
+          <p class="page-head__lede page-head__lede--sm">The other dashboards above still work.
+            If this screen keeps failing, its saved data is probably from an older
+            build — rebuilding it is safe and takes a moment.</p>
+        </div></div>
+        <section class="panel">
+          <p class="panel__note">${String(error && error.message || error)}</p>
+          <hr class="rule">
+          <button type="button" class="btn btn-primary btn-sm" data-act="resetData">Rebuild seeded data</button>
+        </section>
+      </div></main>`;
+    }
+  }
+
   function render() {
     var snapshot = captureFocus();
-    root.innerHTML = String(html`${protoBar()}<main class="screen">${QB.screens[state.screen](state)}</main>`);
+    root.innerHTML = String(html`${protoBar()}${screenMarkup()}`);
     document.body.dataset.screen = state.screen;
-    /* Locks the page behind the dialog and lifts the nav bars above the blur. */
-    document.body.dataset.survey =
-      state.screen === 'alumni' && state.survey.open ? 'open' : 'closed';
+    /* Locks the page behind whichever dialog is up and lifts the nav bars
+       above the blur. Both modals live on the alumni screen. */
+    document.body.dataset.modal =
+      state.screen === 'alumni' && (state.survey.open || state.profile) ? 'open' : 'closed';
     restoreFocus(snapshot);
   }
 
@@ -285,7 +396,9 @@
   /* Escape leaves a survey that was opened by choice; a gated one has to be
      answered or navigated away from. */
   document.addEventListener('keydown', function (event) {
-    if (event.key !== 'Escape' || !state.survey.open || state.survey.gated) return;
+    if (event.key !== 'Escape') return;
+    if (state.profile) { state.profile = false; render(); return; }
+    if (!state.survey.open || state.survey.gated) return;
     closeSurvey();
     render();
   });

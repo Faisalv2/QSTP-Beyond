@@ -170,4 +170,134 @@
     }
     return where ? line + ' · ' + where : line;
   };
+
+  /* ── Writing a completed survey onto a real person ───────────────────
+     QB.applyAnswers mutates (and returns) a store record — this is the
+     function surveyNext calls once the last step is saved. It reads
+     QB.store.data.partners to decide Host startup vs External, which is
+     why it is only ever called after store.js has booted, never at load
+     time here. */
+
+  function isHostPartner(name) {
+    var partners = (QB.store && QB.store.data && QB.store.data.partners) || [];
+    var i;
+    for (i = 0; i < partners.length; i++) {
+      if (partners[i].name === name) return true;
+    }
+    return false;
+  }
+
+  /* A fresh head is only worth adding if it says something the top of the
+     progression doesn't already say — otherwise confirming the same status
+     twice in a row would grow the timeline for no reason. */
+  function unshiftHead(person, head) {
+    if (!head) return;
+    var top = person.progression[0];
+    var same = top && top.year === head.year && top.title === head.title &&
+      top.org === head.org && top.level === head.level;
+    if (same) return;
+    person.progression.unshift(head);
+    if (person.progression.length > 4) person.progression.length = 4;
+  }
+
+  QB.applyAnswers = function (person, answers) {
+    var head = null;
+
+    /* Common to every branch. */
+    person.location = answers.location;
+    person.country = answers.location === 'Elsewhere' ? (answers.country || null) : null;
+    person.fresh = true;
+    person.lastUpdate = 'Jul 2026';
+
+    switch (answers.status) {
+      case 'Employed':
+        person.status = 'Employed';
+        person.role = answers.role;
+        person.employer = answers.company;
+        person.employerKind = isHostPartner(person.employer) ? 'Host startup' : 'External';
+        person.startup = null; person.stage = null; person.incubated = null;
+        person.degree = null; person.field = null;
+        person.lookingFor = [];
+        head = { year: 'Jul 2026', title: person.role, org: person.employer,
+          level: answers.seniority || 'Employed' };
+        break;
+
+      case 'Founder':
+        person.status = 'Founder';
+        person.startup = answers.startup;
+        person.stage = answers.stage;
+        person.incubated = answers.incubator === 'QSTP / Qatar Foundation program';
+        person.employer = person.startup;
+        person.employerKind = 'Own company';
+        person.role = 'Founder';
+        person.degree = null; person.field = null;
+        person.lookingFor = [];
+        head = { year: 'Jul 2026', title: 'Founder', org: person.startup, level: 'Founder' };
+        break;
+
+      case 'Studying':
+        person.status = 'Studying';
+        person.degree = answers.degree;
+        person.field = answers.field;
+        person.role = null; person.employer = null; person.employerKind = null;
+        person.startup = null; person.stage = null; person.incubated = null;
+        person.lookingFor = [];
+        head = { year: 'Jul 2026', title: person.degree, org: person.field, level: 'Postgraduate' };
+        break;
+
+      case 'Looking':
+        person.status = 'Looking';
+        person.lookingFor = answers.lookingFor.slice();
+        if (answers.skills && answers.skills.length) person.skills = answers.skills.slice();
+        person.role = null; person.employer = null; person.employerKind = null;
+        person.startup = null; person.stage = null; person.incubated = null;
+        break;
+
+      case 'Freelancing':
+        person.status = 'Freelancing';
+        /* 'Intern' is a placement, not a discipline — 'Freelance Intern'
+           would be nonsense, so it falls through to the generic label. */
+        person.role = person.role && person.role !== 'Intern' ? person.role : 'Freelancer';
+        person.employer = null; person.employerKind = null;
+        person.startup = null; person.stage = null; person.incubated = null;
+        person.degree = null; person.field = null;
+        person.lookingFor = [];
+        head = { year: 'Jul 2026', org: 'Freelance', level: 'Freelance',
+          title: person.role === 'Freelancer' ? 'Freelancer' : 'Freelance ' + person.role };
+        break;
+
+      default: /* Break */
+        person.status = 'Break';
+        person.role = null; person.employer = null; person.employerKind = null;
+        person.startup = null; person.stage = null; person.incubated = null;
+        person.degree = null; person.field = null;
+        person.lookingFor = [];
+        break;
+    }
+
+    unshiftHead(person, head);
+    return person;
+  };
+
+  /* The home card's one-line summary of a person's current status — the
+     as-is counterpart to QB.surveySummary, which reads a mid-survey answer
+     sheet rather than a saved record. */
+  QB.statusLine = function (person) {
+    switch (person.status) {
+      case 'Employed':
+        return person.role + ' at ' + person.employer;
+      case 'Founder':
+        return 'Founder at ' + person.startup + ' · ' + person.stage;
+      case 'Studying':
+        return person.degree + ' in ' + person.field;
+      case 'Looking':
+        return 'Looking for ' + person.lookingFor.join(', ').toLowerCase();
+      case 'Freelancing':
+        return 'Freelancing · ' + person.role;
+      case 'Intern':
+        return 'Intern at ' + person.employer;
+      default:
+        return 'Taking a break';
+    }
+  };
 })(window.QB = window.QB || {});

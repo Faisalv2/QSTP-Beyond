@@ -1,4 +1,5 @@
-/* Insights → Engagement: platform activity. Presentation only. */
+/* Insights → Engagement: platform activity. Presentation only — the figures
+   arrive computed on the analytics object the workspace hands down. */
 (function (QB) {
   'use strict';
 
@@ -8,7 +9,7 @@
   function features(e) {
     return html`<section class="panel" aria-label="Feature usage">
       <h2 class="panel__title panel__title--sm">Feature usage</h2>
-      <p class="panel__sub">Share of all actions, last 90 days</p>
+      <p class="panel__sub">Share of the content posted in the selected window</p>
       <hr class="rule">
       ${ui.hbars(e.features.map(function (f) {
         return { label: f.label, num: f.num, display: f.num + '%' };
@@ -26,9 +27,9 @@
   }
 
   function cohorts(e) {
-    return html`<section class="panel" aria-label="Engagement by cohort">
-      <h2 class="panel__title panel__title--sm">Engagement by cohort</h2>
-      <p class="panel__sub">Share of each batch active in the last 30 days</p>
+    return html`<section class="panel" aria-label="Engagement by cycle">
+      <h2 class="panel__title panel__title--sm">Engagement by cycle</h2>
+      <p class="panel__sub">Share of each intake with a recently confirmed status</p>
       <hr class="rule">
       ${ui.hbars(e.cohorts, { max: 100 })}
     </section>`;
@@ -40,7 +41,7 @@
       <p class="panel__sub">No activity in 30+ days — a follow-up queue</p>
       <hr class="rule rule--table">
       <table class="table">
-        <thead><tr><th>User</th><th>Cohort</th><th>Inactive for</th><th><span class="sr-only">Actions</span></th></tr></thead>
+        <thead><tr><th>User</th><th>Cycle</th><th>Inactive for</th><th><span class="sr-only">Actions</span></th></tr></thead>
         <tbody>
           ${e.atRisk.map(function (row) {
             return html`<tr>
@@ -56,8 +57,8 @@
   }
 
   QB.insightTabs = QB.insightTabs || {};
-  QB.insightTabs.Engagement = function () {
-    var e = QB.insights.engagement;
+  QB.insightTabs.Engagement = function (state, ins) {
+    var e = ins.engagement;
     return html`${ui.statsRow(e.active)}
     <div class="grid-analysis">${features(e)}${activity(e)}</div>
     <div class="grid-analysis">${cohorts(e)}${atRisk(e)}</div>`;

@@ -1,4 +1,6 @@
-/* Insights → Community: Ideastorm, spotlight and events. Presentation only. */
+/* Insights → Community: Ideastorm, spotlight and events. Presentation only —
+   the figures arrive computed on the analytics object the workspace hands
+   down. */
 (function (QB) {
   'use strict';
 
@@ -6,9 +8,9 @@
   var html = ui.html;
 
   function categories(c) {
-    return html`<section class="panel" aria-label="Ideas by category">
-      <h2 class="panel__title panel__title--sm">Ideas by category</h2>
-      <p class="panel__sub">The 38 live ideas, by tag</p>
+    return html`<section class="panel" aria-label="Ideas by stage">
+      <h2 class="panel__title panel__title--sm">Ideas by stage</h2>
+      <p class="panel__sub">The ${c.stats[0].value} live ideas, by how far they have got</p>
       <hr class="rule">
       ${ui.hbars(c.categories)}
     </section>`;
@@ -17,7 +19,7 @@
   function posted(c) {
     return html`<section class="panel" aria-label="Ideas posted over time">
       <h2 class="panel__title panel__title--sm">Ideas posted</h2>
-      <p class="panel__sub">Per quarter</p>
+      <p class="panel__sub">Per intake cycle, by the owner’s cycle</p>
       <hr class="rule">
       ${ui.cols(c.postedSeries)}
     </section>`;
@@ -84,8 +86,8 @@
   }
 
   QB.insightTabs = QB.insightTabs || {};
-  QB.insightTabs.Community = function () {
-    var c = QB.insights.community;
+  QB.insightTabs.Community = function (state, ins) {
+    var c = ins.community;
     return html`${ui.statsRow(c.stats)}
     <div class="grid-analysis">${categories(c)}${posted(c)}</div>
     <div class="grid-half">${formation(c)}${sought(c)}</div>

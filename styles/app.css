@@ -878,21 +878,25 @@ a:hover { color: var(--color-accent-800); }
 .mini-person__name { font-size: 13.5px; font-weight: 600; }
 .mini-person__role { font-size: 11.5px; color: var(--on-ink-60); }
 
-/* ══ Status survey — a modal over the alumni screen ═══════════════ */
+/* ══ Modals — the survey and the profile ══════════════════════════ */
 
-/* The page behind the dialog is frozen and blurred, but the two nav bars are
+/* The page behind a dialog is frozen and blurred, but the two nav bars are
    lifted above the scrim: a respondent who does not want to answer now must
-   still be able to go somewhere else. */
-body[data-survey='open'] { overflow: hidden; }
-body[data-survey='open'] .proto-bar { z-index: 60; }
-body[data-survey='open'] .appbar { position: relative; z-index: 60; }
+   still be able to go somewhere else, and the profile you opened stays
+   visible above its own dialog. Both dialogs share this ground. */
+body[data-modal='open'] { overflow: hidden; }
+body[data-modal='open'] .proto-bar { z-index: 60; }
+body[data-modal='open'] .appbar { position: relative; z-index: 60; }
 
-.survey-scrim {
+.scrim {
   position: fixed; inset: 0; z-index: 40;
   background: color-mix(in srgb, var(--color-ink-deep) 34%, transparent);
   backdrop-filter: blur(7px); -webkit-backdrop-filter: blur(7px);
 }
-.survey-wrap {
+/* Dismissible dialogs let the scrim take the click; the gated survey does not. */
+.scrim--closes { cursor: pointer; }
+
+.modal-wrap {
   position: fixed; inset: 0; z-index: 50;
   display: grid; place-items: center;
   padding: var(--survey-top) 24px 28px;
@@ -987,3 +991,120 @@ body[data-survey='open'] .appbar { position: relative; z-index: 60; }
 /* A tab that needs a current status before it opens. */
 .navtab--locked { color: var(--t-45); }
 .navtab--locked:hover { color: var(--color-accent-700); }
+
+/* ══ Profile modal and its timeline ═══════════════════════════════ */
+
+/* The identity block in the app bar is a control now, but it must not start
+   looking like a button — only behave like one. */
+.user--button {
+  font: inherit; text-align: left; cursor: pointer;
+  padding: 5px 8px; margin: -5px -8px;
+  background: transparent; border: 0; border-radius: var(--radius-sm);
+}
+.user--button:hover { background: var(--color-mute); }
+.user--button:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 1px; }
+
+.profile-modal { width: min(560px, 100%); }
+.profile-modal__id { display: flex; align-items: center; gap: 14px; flex: 1; min-width: 0; }
+.profile-modal__line { margin: 4px 0 0; font-size: 13px; color: var(--t-60); }
+.profile-modal .chip-set--foot { margin: 14px 0 0; }
+
+/* One rule down the left, one dot per milestone. The line is drawn on the
+   list rather than per item so it never breaks between entries. */
+.journey { list-style: none; margin: 10px 0 0; padding: 0; position: relative; }
+.journey::before {
+  content: ''; position: absolute; left: 6px; top: 8px; bottom: 10px;
+  width: 2px; background: var(--color-divider);
+}
+.journey__item { position: relative; padding: 0 0 20px 26px; }
+.journey__item:last-child { padding-bottom: 0; }
+.journey__dot {
+  position: absolute; left: 0; top: 4px; width: 14px; height: 14px;
+  border-radius: 50%; background: var(--color-surface);
+  box-shadow: inset 0 0 0 3px var(--color-accent);
+}
+.journey__when {
+  margin: 0 0 2px; font-size: 11px; letter-spacing: .08em;
+  text-transform: uppercase; color: var(--t-45);
+}
+.journey__title { margin: 0; font-size: 14px; line-height: 1.4; }
+.journey__meta { margin: 2px 0 0; font-size: 12.5px; color: var(--t-55); }
+
+/* Completing the programme is the checkpoint that makes someone an alum, so
+   it wears the cap instead of a dot — and covers the rule behind it. */
+.journey__cap {
+  position: absolute; left: -4px; top: -1px; z-index: 1;
+  font-size: 17px; line-height: 1;
+  background: var(--color-surface); padding: 1px 2px 2px;
+}
+.journey__item--graduation .journey__title { font-weight: 600; }
+
+/* Where the record starts, and the moments worth colouring differently. */
+.journey__item--origin .journey__dot { box-shadow: inset 0 0 0 3px var(--color-accent-2), 0 0 0 3px var(--tone-lime-bg); }
+.journey__item--origin .journey__title { font-weight: 600; }
+.journey__item--founder .journey__dot,
+.journey__item--spotlight .journey__dot { box-shadow: inset 0 0 0 3px var(--color-accent-2); }
+.journey__item--referral .journey__dot,
+.journey__item--offer .journey__dot,
+.journey__item--update .journey__dot { box-shadow: inset 0 0 0 3px var(--t-18); }
+
+/* Skills read as labels here, not as controls. */
+.profile-modal .picks .chip-btn { cursor: default; }
+.profile-modal .picks .chip-btn:hover { border-color: var(--t-18); color: var(--t-65); }
+
+/* ══ Print report ═════════════════════════════════════════════════
+   "Export all insights" (src/screens/report.js, wired in src/app.js) pours a
+   full report into #report and calls window.print(). #report is never a
+   screen — it stays out of flow until a print, and it is built fresh from
+   QB.insightTabs each time, so nothing here has to fight sticky rails or
+   hover-revealed controls: the report's content never uses either. */
+
+#report { display: none; }
+
+/* Base styling for the report's own elements — inert on screen since
+   #report is display:none there, but written outside @media print so the
+   rules exist once rather than duplicated inside it. */
+.report__cover { margin: 0 0 28px; }
+.report__eyebrow {
+  margin: 0 0 10px; font-size: 11px; letter-spacing: .14em;
+  text-transform: uppercase; color: var(--color-accent-700);
+}
+.report__title { margin: 0 0 10px; font-size: 30px; letter-spacing: -.01em; }
+.report__line { margin: 0 0 4px; font-size: 13px; color: var(--t-60); }
+
+.report__section-head { margin: 0 0 14px; }
+.report__section-title { margin: 0 0 2px; font-size: 22px; }
+.report__section-hint {
+  margin: 0; font-size: 11px; letter-spacing: .1em;
+  text-transform: uppercase; color: var(--color-accent-700);
+}
+
+@media print {
+  html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  /* #app carries the whole on-screen app — proto bar, appbar, page — as one
+     subtree, so hiding it (plus anything else a future top-level sibling
+     adds) is enough to leave only the report on the page. */
+  body > *:not(#report) { display: none !important; }
+
+  #report {
+    display: block; margin: 0; padding: 0;
+    background: #fff; color: var(--color-text);
+  }
+  #report .report__cover { break-after: avoid; }
+  #report .report__section { break-before: page; }
+  #report .panel { box-shadow: none; border: 1px solid var(--color-divider); break-inside: avoid; }
+
+  /* A two- or three-column grid fits a 1240px+ desktop screen, not an A4
+     page in portrait. The chart/table panels collapse to one column so
+     nothing gets sliced at the page edge; the KPI strip and stat tiles are
+     compact enough to keep a second column without doing that. */
+  #report .grid-analysis, #report .grid-analysis--lead, #report .grid-half,
+  #report .grid-third, #report .pair-grid {
+    grid-template-columns: 1fr;
+  }
+  #report .kpis, #report .kpis--5, #report .stats-row, #report .stats-row--3 {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  svg { max-width: 100%; height: auto; }
+}
