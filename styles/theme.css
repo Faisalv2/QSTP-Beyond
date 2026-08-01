@@ -1,0 +1,79 @@
+/* QSTP Beyond theme — retunes the Modernist tokens to the programme's palette
+   (deep green ink, teal accent, lime highlight) and adds the few app-level
+   roles the dashboards need on top of the system's own ramps.
+   Load after _ds/…/styles.css. */
+
+:root {
+  /* ── Modernist tokens, retuned ─────────────────────────────────── */
+  --color-bg: #f1f3f0;
+  --color-surface: #ffffff;
+  --color-text: #10241f;
+  --color-accent: #009ca7;
+  --color-accent-2: #bfd42f;
+  --color-divider: color-mix(in srgb, #10241f 15%, transparent);
+
+  --color-accent-100: #e8f7f8;
+  --color-accent-200: #c7ecee;
+  --color-accent-300: #93dae0;
+  --color-accent-500: #009ca7;
+  --color-accent-600: #00838d;
+  --color-accent-700: #0a6a72;
+  --color-accent-800: #0a4f56;
+  --color-accent-900: #0b3238;
+
+  --color-accent-2-100: #f5f9e0;
+  --color-accent-2-200: #e8f2b4;
+  --color-accent-2-700: #6b7a1c;
+  --color-accent-2-800: #4e5a15;
+
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 18px;
+
+  --shadow-sm: 0 1px 2px rgba(9, 68, 56, .07);
+  --shadow-md: 0 4px 18px rgba(9, 68, 56, .09);
+  --shadow-lg: 0 18px 44px rgba(9, 68, 56, .14);
+
+  /* ── App roles ─────────────────────────────────────────────────── */
+
+  /* The dark ground the operations chrome and the two dark cards sit on. */
+  --color-ink: #094438;
+  --color-ink-deep: #10241f;
+  --on-ink: #eaf1ee;
+  --on-ink-70: rgba(234, 241, 238, .7);
+  --on-ink-68: rgba(234, 241, 238, .68);
+  --on-ink-60: rgba(234, 241, 238, .6);
+  --on-ink-55: rgba(234, 241, 238, .55);
+
+  /* Ink tints — the dashboards lean on a lot of graded secondary text. */
+  --t-18: rgba(16, 36, 31, .18);
+  --t-40: rgba(16, 36, 31, .4);
+  --t-45: rgba(16, 36, 31, .45);
+  --t-50: rgba(16, 36, 31, .5);
+  --t-55: rgba(16, 36, 31, .55);
+  --t-60: rgba(16, 36, 31, .6);
+  --t-62: rgba(16, 36, 31, .62);
+  --t-65: rgba(16, 36, 31, .65);
+  --t-70: rgba(16, 36, 31, .7);
+  --t-72: rgba(16, 36, 31, .72);
+
+  /* Quiet fills that are neither surface nor accent. */
+  --color-mute: #eef1ee;
+  --color-grid: #e4e8e4;
+
+  /* Status tones — every small label in the app picks one of these pairs. */
+  --tone-lime-bg: #f5f9e0;
+  --tone-lime-fg: #4e5a15;
+  --tone-teal-bg: #e8f7f8;
+  --tone-teal-fg: #0a4f56;
+  --tone-mute-bg: #eef1ee;
+  --tone-mute-fg: rgba(16, 36, 31, .55);
+  --tone-warn-bg: #fbeceb;
+  --tone-warn-fg: #8c2a1c;
+  --tone-up: #4e5a15;
+  --tone-down: #a33322;
+
+  /* The dashboards are fixed-width desktop surfaces. */
+  --shell-min: 1240px;
+  --shell-max: 1400px;
+}
