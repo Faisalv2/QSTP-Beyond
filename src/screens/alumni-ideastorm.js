@@ -30,7 +30,7 @@
         <span class="avatar avatar--teal avatar--xs">${idea.ownerInitials}</span>
         <span class="idea__owner">${idea.owner}</span>
         <button type="button" class="${ui.cx('chip-btn', 'chip-btn--action', { 'is-active': idea.backed })}"
-                aria-pressed="${idea.backed}">${idea.backed ? 'Interested ✓' : 'Express interest'}</button>
+                aria-pressed="${String(idea.backed)}">${idea.backed ? 'Interested ✓' : 'Express interest'}</button>
       </div>
     </article>`;
   }
@@ -52,20 +52,6 @@
         })}
       </ul>
       <button type="button" class="btn btn-lime btn-spaced">Review requests</button>
-    </section>`;
-  }
-
-  function howPanel(steps) {
-    return html`<section class="panel panel--tight" aria-labelledby="how-title">
-      <h2 class="panel__title panel__title--xs panel__title--lead" id="how-title">How teams form here</h2>
-      <ol class="steps">
-        ${steps.map(function (step) {
-          return html`<li class="step">
-            <span class="step__n">${step.n}</span>
-            <span class="step__text">${step.text}</span>
-          </li>`;
-        })}
-      </ol>
     </section>`;
   }
 
@@ -104,6 +90,8 @@
       <button type="button" class="btn btn-primary">Post an idea</button>
     </div>
 
+    ${ui.howStrip(d.teamSteps)}
+
     <div class="grid-split grid-split--top">
       <div class="stack stack--gap-sm">
         ${stageBar(d.ideas.length)}
@@ -111,7 +99,6 @@
       </div>
       <div class="stack stack--sticky">
         ${requestsPanel(d.ideaRequests)}
-        ${howPanel(d.teamSteps)}
         ${backingPanel(backing)}
       </div>
     </div>`;

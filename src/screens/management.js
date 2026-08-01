@@ -1,4 +1,7 @@
-/* Management / operations — how QSTP reads the alumni programme. */
+/* Management / operations. Two workspaces, each a left sidebar plus a body:
+   Insights (five analytics views registered in QB.insightTabs by the
+   insights-*.js files, over a persistent KPI strip and global filters) and
+   Programmes (events, spotlight, Ideastorm, referrals). */
 (function (QB) {
   'use strict';
 
@@ -7,27 +10,36 @@
 
   var NAV = ['Insights', 'Alumni', 'Programmes', 'Partners'];
 
-  function header(state) {
+  function header(state, viewer) {
+    var current = state.mgmtNav || 'Insights';
     return html`<header class="appbar appbar--ink">
       <a class="appbar__brand" href="#management">
         ${ui.brandDots('onink')}
         <span class="appbar__name">QSTP Beyond</span>
         <span class="appbar__scope">Operations</span>
       </a>
-      <nav class="appbar__nav appbar__nav--ink" aria-label="Operations">
-        ${NAV.map(function (item, i) {
-          return html`<a href="#" ${i === 0 ? ui.raw('aria-current="page"') : ''}>${item}</a>`;
+      <nav class="appbar__nav" aria-label="Operations">
+        ${NAV.map(function (item) {
+          var on = item === current;
+          return html`<button type="button" class="${ui.cx('navtab', 'navtab--ink', { 'is-active': on })}"
+            data-act="mgmtNav" data-arg="${item}"
+            ${on ? ui.raw('aria-current="page"') : ''}>${item}</button>`;
         })}
       </nav>
-      <div class="segbar" role="group" aria-label="Reporting range">
-        ${ui.chipRow(QB.filters.ranges, state.range, 'range', 'seg')}
+      <div class="user">
+        <span class="avatar avatar--ghost">${viewer.initials}</span>
+        <span class="user__text">
+          <span class="user__name">${viewer.name}</span>
+          <span class="user__meta">${viewer.meta}</span>
+        </span>
       </div>
-      <button type="button" class="btn btn-on-ink">Export</button>
     </header>`;
   }
 
-  function kpiCards(kpis) {
-    return html`<div class="kpis">
+  /* ── Insights ────────────────────────────────────────────────────── */
+
+  function kpiStrip(kpis) {
+    return html`<div class="${ui.cx('kpis', kpis.length === 5 && 'kpis--5')}">
       ${kpis.map(function (kpi) {
         return html`<article class="kpi" style="--kpi-rule:${kpi.rule}">
           <h2 class="kpi__label">${kpi.label}</h2>
@@ -41,69 +53,79 @@
     </div>`;
   }
 
-  function outcomesPanel(d) {
-    return html`<section class="panel" aria-labelledby="outcomes-title">
-      <h2 class="panel__title panel__title--sm" id="outcomes-title">Outcome breakdown</h2>
-      <p class="panel__sub">Where the ${d.trackedAlumni.toLocaleString()} alumni are today</p>
-      <hr class="rule">
-      <div class="donut-row">
-        ${ui.donut(d.outcomes, d.outcomeCentre)}
-        <ul class="legend">
-          ${d.outcomes.map(function (slice) {
-            return html`<li class="legend__row">
-              <span class="legend__swatch" style="background:${slice.color}"></span>
-              <span class="legend__label">${slice.label}</span>
-              <span class="legend__pct">${slice.pct.toFixed(1)}%</span>
-              <span class="legend__n">${slice.n}</span>
-            </li>`;
-          })}
-        </ul>
-      </div>
-    </section>`;
+  var SIDE_TABS = [
+    { id: 'Outcomes', hint: 'ROI & data health' },
+    { id: 'Engagement', hint: 'Platform activity' },
+    { id: 'Pipeline', hint: 'Jobs & referrals' },
+    { id: 'Community', hint: 'Ideastorm & events' },
+    { id: 'Partners', hint: 'Organizations' }
+  ];
+
+  /* Section sidebar — shared by both workspaces. */
+  function sideNav(title, tabs, active, action) {
+    return html`<nav class="side-nav" aria-label="${title} sections">
+      <h2 class="side-nav__title">${title}</h2>
+      ${tabs.map(function (t) {
+        var on = t.id === active;
+        return html`<button type="button" class="${ui.cx('side-nav__tab', { 'is-active': on })}"
+          data-act="${action}" data-arg="${t.id}" ${on ? ui.raw('aria-current="page"') : ''}>
+          <span class="side-nav__name">${t.id}</span>
+          <span class="side-nav__hint">${t.hint}</span>
+        </button>`;
+      })}
+    </nav>`;
   }
 
-  function conversionPanel(chart) {
-    return html`<section class="panel" aria-labelledby="conversion-title">
-      <div class="panel__head panel__head--split">
-        <div>
-          <h2 class="panel__title panel__title--sm" id="conversion-title">Conversion into the QSTP ecosystem</h2>
-          <p class="panel__sub">Interns who later joined an incubatee, founded, or entered the pipeline</p>
-        </div>
-        <p class="figure">
-          <span class="figure__value">${chart.headline}</span>
-          <span class="figure__change">${chart.change}</span>
-        </p>
+  /* Global insights filters. Time range leads and is wired to the store — it
+     is the one every view is read against; the rest are presentational until
+     the filtering logic lands. */
+  var GLOBAL_FILTERS = [
+    ['Cohort', ['All cohorts', '2025', '2024', '2023', '2022', '2021']],
+    ['Outcome', ['All outcomes', 'Employed', 'Founded', 'Studying', 'Job-seeking', 'Unreported']],
+    ['Field / skill', ['All fields', 'Software', 'Design', 'Data', 'Biotech', 'Energy']],
+    ['Host startup', ['All hosts', 'Snoonu', 'Meddy', 'Fluidic', 'Ogram', 'Karaz']],
+    ['Current employer', ['All employers', 'QSTP companies', 'External companies']],
+    ['Location', ['Qatar & abroad', 'Qatar', 'Abroad']],
+    ['User type', ['Interns + alumni', 'Alumni', 'Current interns']],
+    ['Engagement', ['Any activity', 'Active', 'Dormant']]
+  ];
+
+  function insightsView(state, d) {
+    var tab = QB.insightTabs[state.insightsTab] ? state.insightsTab : 'Outcomes';
+    var filters = [['Time range', QB.filters.ranges, 'range', state.range]].concat(GLOBAL_FILTERS);
+
+    return html`<div class="page-head">
+      <div>
+        <h1 class="h1--sm">Insights</h1>
+        <p class="page-head__lede page-head__lede--sm">${d.trackedAlumni.toLocaleString()} tracked alumni · data refreshed 06:00 AST</p>
       </div>
-      <hr class="rule rule--snug">
-      ${ui.lineChart(chart)}
-    </section>`;
+      <div class="page-head__actions page-head__actions--end">
+        <p class="page-head__note">Showing ${state.range.toLowerCase()}</p>
+        <button type="button" class="btn btn-secondary">Export all insights</button>
+      </div>
+    </div>
+    ${kpiStrip(QB.insights.kpis)}
+    <div class="workspace">
+      <aside class="side">
+        ${sideNav('Insights', SIDE_TABS, tab, 'insightsTab')}
+        ${ui.selectRail('Filters · all views', filters, 'Reset filters')}
+      </aside>
+      <div class="workspace__body">${QB.insightTabs[tab](state, d)}</div>
+    </div>`;
   }
 
-  function engagementPanel(groups) {
-    return html`<section class="panel" aria-labelledby="engagement-title">
-      <h2 class="panel__title panel__title--sm" id="engagement-title">Status response rate</h2>
-      <p class="panel__sub">Alumni who confirmed their career status this quarter</p>
-      <hr class="rule">
-      <div class="bars">
-        ${groups.map(function (group) {
-          return html`<div class="bar">
-            <p class="bar__head"><span>${group.label}</span><span class="bar__pct">${group.pct}%</span></p>
-            <div class="bar__track" role="img" aria-label="${group.label}: ${group.pct} percent">
-              <span class="bar__fill" style="width:${group.pct}%;background:${group.color}"></span>
-            </div>
-          </div>`;
-        })}
-      </div>
-      <p class="panel__foot">Referral perks lifted response by <strong>+17 pts</strong>
-        among cohorts that earned points in the last 90 days.</p>
-    </section>`;
-  }
+  /* ── Programmes ──────────────────────────────────────────────────── */
 
-  var ADMIN_ACTION = {
-    Events: 'Create event',
-    Spotlight: 'Add nominee',
-    Ideastorm: 'Moderation rules'
-  };
+  var PROGRAMME_TABS = [
+    { id: 'Events', hint: 'Calendar & capacity', action: 'Create event',
+      sub: 'Scheduled events and how they are filling' },
+    { id: 'Spotlight', hint: 'Nominations & slots', action: 'Add nominee',
+      sub: 'Who is queued to be featured, and when' },
+    { id: 'Ideastorm', hint: 'Live ideas', action: 'Ideastorm settings',
+      sub: 'Ideas publish directly — this is what is live and how it is moving' },
+    { id: 'Referrals', hint: 'Verification queue', action: 'Export queue',
+      sub: 'Confirm the alum and their consent before it reaches the employer' }
+  ];
 
   function eventsTable(events) {
     return html`<table class="table">
@@ -136,7 +158,7 @@
           </div>
           <span class="nominee__slot">${person.slot}</span>
           <button type="button" class="${ui.cx('chip-btn', 'chip-btn--pill', { 'is-active': on })}"
-                  data-act="feature" data-arg="${person.id}" aria-pressed="${on}">
+                  data-act="feature" data-arg="${person.id}" aria-pressed="${String(on)}">
             ${on ? 'Featured' : 'Feature'}
           </button>
         </li>`;
@@ -144,71 +166,95 @@
     </ul>`;
   }
 
-  function moderationQueue(items) {
+  /* Ideas go live without review, so this is oversight rather than a queue:
+     what is running, how it is moving, and where to send it next. */
+  function liveIdeas(items) {
     return html`<div class="mods">
       ${items.map(function (item) {
         return html`<article class="mod">
           <div class="mod__head">
             <h3 class="mod__title">${item.title}</h3>
-            ${ui.tag(item.flag, item.tone)}
-            <span class="mod__team">${item.team}</span>
+            ${ui.tag(item.stage, item.tone)}
+            ${item.reports ? ui.tag(item.reports, 'warn') : ''}
+            <span class="mod__team">${item.meta}</span>
           </div>
           <p class="mod__note">${item.note}</p>
           <div class="mod__actions">
-            <button type="button" class="btn btn-primary btn-sm">Approve</button>
-            <button type="button" class="btn btn-secondary btn-sm">Ask for detail</button>
-            <button type="button" class="btn btn-ghost btn-sm">Route to incubation</button>
+            <button type="button" class="btn btn-primary btn-sm">Route to incubation</button>
+            <button type="button" class="btn btn-secondary btn-sm">Feature in spotlight</button>
+            <button type="button" class="btn btn-ghost btn-sm">Archive</button>
           </div>
         </article>`;
       })}
     </div>`;
   }
 
-  function adminPanel(state, d) {
-    var body = state.adminTab === 'Events' ? eventsTable(d.adminEvents)
-      : state.adminTab === 'Spotlight' ? nominees(d.spotlight, state.featured)
-      : moderationQueue(d.moderation);
-
-    return html`<section class="panel panel--flush" aria-label="Programme admin">
-      <div class="tabs" role="tablist">
-        ${QB.filters.adminTabs.map(function (label) {
-          var on = label === state.adminTab;
-          return html`<button type="button" role="tab" aria-selected="${on}"
-            class="${ui.cx('tab', { 'is-active': on })}"
-            data-act="adminTab" data-arg="${label}">${label}</button>`;
+  function referralQueue(referrals) {
+    return html`<table class="table">
+      <thead><tr>
+        <th>Alum</th><th>Referred by</th><th>Destination</th><th>Submitted</th><th>Status</th>
+        <th><span class="sr-only">Actions</span></th>
+      </tr></thead>
+      <tbody>
+        ${referrals.map(function (r) {
+          return html`<tr>
+            <td class="td-strong">${r.alum}</td>
+            <td class="td-muted">${r.referrer}</td>
+            <td class="td-muted">${r.dest}</td>
+            <td class="td-quiet">${r.date}</td>
+            <td>${ui.tag(r.status, r.tone)}</td>
+            <td class="td-end"><button type="button" class="btn btn-ghost btn-sm">${r.action}</button></td>
+          </tr>`;
         })}
-        <button type="button" class="btn btn-primary btn-sm tabs__action">${ADMIN_ACTION[state.adminTab]}</button>
+      </tbody>
+    </table>`;
+  }
+
+  function programmeSection(tab, state, d) {
+    if (tab.id === 'Events') return { body: eventsTable(d.adminEvents), table: true };
+    if (tab.id === 'Spotlight') return { body: nominees(d.spotlight, state.featured), table: false };
+    if (tab.id === 'Ideastorm') return { body: liveIdeas(d.ideaAdmin), table: false };
+    return { body: referralQueue(d.referralAdmin), table: true };
+  }
+
+  function programmes(state, d) {
+    var active = state.adminTab;
+    var tab = PROGRAMME_TABS.filter(function (t) { return t.id === active; })[0] || PROGRAMME_TABS[0];
+    var section = programmeSection(tab, state, d);
+
+    return html`<div class="page-head">
+      <div>
+        <h1 class="h1--sm">Programmes</h1>
+        <p class="page-head__lede page-head__lede--sm">Events, spotlight, Ideastorm and the referral queue</p>
       </div>
-      <hr class="rule rule--flush">
-      <div class="admin-body">${body}</div>
-    </section>`;
+    </div>
+    <div class="workspace">
+      <aside class="side">${sideNav('Programmes', PROGRAMME_TABS, tab.id, 'adminTab')}</aside>
+      <div class="workspace__body">
+        <section class="panel" aria-label="${tab.id}">
+          <div class="panel__head panel__head--bar">
+            <div>
+              <h2 class="panel__title panel__title--sm">${tab.id}</h2>
+              <p class="panel__sub">${tab.sub}</p>
+            </div>
+            <div class="panel__actions">
+              <button type="button" class="btn btn-primary btn-sm">${tab.action}</button>
+            </div>
+          </div>
+          <hr class="${ui.cx('rule', section.table && 'rule--table')}">
+          ${section.body}
+        </section>
+      </div>
+    </div>`;
   }
 
   QB.screens = QB.screens || {};
   QB.screens.management = function (state) {
     var d = QB.data;
-
-    return html`${header(state)}
-    <div class="page page--tight">
-      <div class="page-head">
-        <div>
-          <h1 class="h1--sm">Alumni outcomes</h1>
-          <p class="page-head__lede page-head__lede--sm">${d.trackedAlumni.toLocaleString()} tracked alumni · data refreshed 06:00 AST</p>
-        </div>
-        <p class="page-head__note">Showing ${state.range.toLowerCase()}</p>
-      </div>
-
-      ${kpiCards(d.kpis)}
-
-      <div class="grid-analysis">
-        ${outcomesPanel(d)}
-        ${conversionPanel(d.conversion)}
-      </div>
-
-      <div class="grid-analysis">
-        ${engagementPanel(d.engagement)}
-        ${adminPanel(state, d)}
-      </div>
-    </div>`;
+    var view = state.mgmtNav === 'Programmes' ? programmes(state, d)
+      : QB.mgmtViews[state.mgmtNav] ? QB.mgmtViews[state.mgmtNav](state)
+      : insightsView(state, d);
+    return html`${header(state, d.opsViewer)}
+    <div class="page page--tight">${view}</div>`;
   };
 })(window.QB = window.QB || {});

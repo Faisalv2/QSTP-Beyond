@@ -5,7 +5,7 @@
   var ui = QB.ui;
   var html = ui.html;
 
-  function header(viewer, tab) {
+  function header(viewer, tab, locked) {
     return html`<header class="appbar appbar--light">
       <a class="appbar__brand" href="#alumni">
         ${ui.brandDots()}
@@ -14,8 +14,12 @@
       <nav class="appbar__nav" aria-label="Alumni">
         ${QB.filters.alumniTabs.map(function (item) {
           var on = item === tab;
-          return html`<button type="button" class="${ui.cx('navtab', { 'is-active': on })}"
+          /* A locked tab is still reachable — asking for it opens the survey. */
+          var shut = locked.indexOf(item) !== -1;
+          return html`<button type="button"
+            class="${ui.cx('navtab', { 'is-active': on, 'navtab--locked': shut })}"
             data-act="tab" data-arg="${item}"
+            ${shut ? ui.raw('title="Confirm your status to open this"') : ''}
             ${on ? ui.raw('aria-current="page"') : ''}>${item}</button>`;
         })}
       </nav>
@@ -29,16 +33,35 @@
     </header>`;
   }
 
-  function statusCard(viewer) {
+  /* Three states. Unconfirmed, the card asks. Confirmed as-is, it keeps the
+     status on file and says so. Answered through the survey, it reports the
+     new answer back — leaving the old role there would make the answer look
+     ignored. Either confirmation opens the three gated tabs. */
+  function statusCard(viewer, state) {
+    var done = state.statusUpdated;
+    var surveyed = state.statusSource === 'survey';
+
     return html`<section class="status" aria-labelledby="status-title">
       <div class="status__main">
-        <p class="status__kicker">Career status · last confirmed Mar 2024</p>
-        <h2 class="status__title" id="status-title">Backend Engineer at Snoonu — still right?</h2>
-        <p class="status__body">Alumni who keep their status current unlock Gold referral tier
-          and get first look at founding-team roles.</p>
+        <p class="status__kicker">Career status · ${done
+          ? 'confirmed a moment ago'
+          : 'last confirmed ' + viewer.statusSince}</p>
+        <h2 class="status__title" id="status-title">${surveyed
+          ? QB.surveySummary(state.survey.answers)
+          : viewer.currentStatus + (done ? '' : ' — still right?')}</h2>
+        <p class="status__body">${done
+          ? (surveyed
+            ? html`Job offers, Ideastorm and Referrals are open for this session.
+              Everything you told us is on your profile.`
+            : html`Kept as it was. Job offers, Ideastorm and Referrals are open
+              for this session — change it any time if that stops being true.`)
+          : html`Alumni who keep their status current unlock Gold referral tier
+            and get first look at founding-team roles.`}</p>
         <div class="status__actions">
-          <button type="button" class="btn btn-lime">Yes, still accurate</button>
-          <button type="button" class="btn btn-on-ink">Update my status</button>
+          ${done
+            ? html`<button type="button" class="btn btn-on-ink" data-act="openSurvey">Change my status</button>`
+            : html`<button type="button" class="btn btn-lime" data-act="confirmStatus">Yes, still accurate</button>
+              <button type="button" class="btn btn-on-ink" data-act="openSurvey">Update my status</button>`}
         </div>
       </div>
       <div class="status__aside">
@@ -109,7 +132,7 @@
     </section>`;
   }
 
-  function home(d) {
+  function home(d, state) {
     var viewer = d.viewer;
 
     return html`<div class="page-head">
@@ -123,7 +146,7 @@
 
     <div class="grid-split grid-split--home">
       <div class="stack">
-        ${statusCard(viewer)}
+        ${statusCard(viewer, state)}
         ${spotlightPanel(d.spotlight)}
       </div>
       ${eventsPanel(d.events)}
@@ -137,8 +160,10 @@
   QB.screens.alumni = function (state) {
     var d = QB.data;
     var tab = QB.alumniTabs[state.tab] ? state.tab : 'Home';
+    var locked = state.statusUpdated ? [] : QB.surveyData.gatedTabs;
 
-    return html`${header(d.viewer, tab)}
-    <div class="page">${QB.alumniTabs[tab](d)}</div>`;
+    return html`${header(d.viewer, tab, locked)}
+    <div class="page">${QB.alumniTabs[tab](d, state)}</div>
+    ${state.survey.open ? QB.surveyDialog(state) : ''}`;
   };
 })(window.QB = window.QB || {});

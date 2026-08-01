@@ -6,18 +6,6 @@
   var ui = QB.ui;
   var html = ui.html;
 
-  function howStrip(steps) {
-    return html`<ol class="how-strip">
-      ${steps.map(function (step) {
-        return html`<li class="how-strip__cell">
-          <p class="how-strip__n">${step.n}</p>
-          <h2 class="how-strip__title">${step.title}</h2>
-          <p class="how-strip__text">${step.text}</p>
-        </li>`;
-      })}
-    </ol>`;
-  }
-
   function referralTable(referrals, inFlight) {
     return html`<section class="panel" aria-labelledby="referrals-title">
       <div class="panel__head">
@@ -106,7 +94,7 @@
       </div>
     </div>
 
-    ${howStrip(d.referralSteps)}
+    ${ui.howStrip(d.referralSteps)}
 
     <div class="grid-split grid-split--top">
       ${referralTable(d.referrals, inFlight)}

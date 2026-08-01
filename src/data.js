@@ -26,7 +26,10 @@
       initials: 'LH',
       meta: 'Alumni · Cohort ’23',
       profileComplete: 80,
-      today: 'Wednesday, 30 July'
+      today: 'Wednesday, 30 July',
+      /* The status on file — what "Yes, still accurate" confirms. */
+      currentStatus: 'Backend Engineer at Snoonu',
+      statusSince: 'Mar 2024'
     },
 
     spotlight: [
@@ -124,9 +127,12 @@
     ],
 
     teamSteps: [
-      { n: '01', text: 'Express interest — the owner sees your profile and skills, nothing else.' },
-      { n: '02', text: 'If it’s mutual, QSTP opens a shared channel and a 30-minute intro slot.' },
-      { n: '03', text: 'Teams of three or more can apply to the incubation pipeline directly.' }
+      { n: '01', title: 'Express interest',
+        text: 'The owner sees your profile and your skills, and nothing else, until you both agree.' },
+      { n: '02', title: 'Meet properly',
+        text: 'If it’s mutual, QSTP opens a shared channel and books a 30-minute intro slot for you.' },
+      { n: '03', title: 'Take it further',
+        text: 'Teams of three or more can apply to the incubation pipeline directly from here.' }
     ],
 
     /* ── Alumni: referrals ────────────────────────────────────────── */
@@ -151,30 +157,12 @@
 
     /* ── Management ───────────────────────────────────────────────── */
 
+    opsViewer: { name: 'Dana Al-Mansouri', initials: 'DM', meta: 'Programme operations' },
+
     trackedAlumni: 1842,
 
-    kpis: [
-      { label: 'Alumni tracked', value: '1,842', delta: '+126', deltaTone: 'up',
-        note: 'Across 9 intern cohorts', rule: INK },
-      { label: 'Conversion to ecosystem', value: '7.2%', delta: '+0.8 pt', deltaTone: 'up',
-        note: '133 alumni inside QSTP companies', rule: TEAL },
-      { label: 'Status response rate', value: '63%', delta: '+17 pts', deltaTone: 'up',
-        note: 'Since referral perks launched', rule: LIME },
-      { label: 'Active ideas', value: '38', delta: '−4', deltaTone: 'down',
-        note: '6 teams formed this quarter', rule: TEAL_PALE }
-    ],
-
-    /* `pct` drives both the legend and the donut geometry. */
-    outcomes: [
-      { label: 'Employed', pct: 54.0, n: 995, color: INK },
-      { label: 'Founded a company', pct: 11.0, n: 203, color: TEAL },
-      { label: 'Incubation pipeline', pct: 7.2, n: 133, color: LIME },
-      { label: 'Studying', pct: 19.0, n: 350, color: TEAL_PALE },
-      { label: 'Unknown / lapsed', pct: 8.8, n: 161, color: GREY }
-    ],
-    outcomeCentre: { value: '65%', label: 'IN WORK' },
-
     conversion: {
+      name: 'Hire-to-ecosystem conversion',
       headline: '7.2%',
       change: '+0.8 pt QoQ',
       max: 8,
@@ -186,14 +174,6 @@
       ]
     },
 
-    engagement: [
-      { label: 'Cohort ’21', pct: 71, color: INK },
-      { label: 'Cohort ’22', pct: 66, color: INK },
-      { label: 'Cohort ’23', pct: 58, color: TEAL },
-      { label: 'Cohort ’24', pct: 49, color: TEAL },
-      { label: 'Cohort ’25', pct: 44, color: TEAL_PALE }
-    ],
-
     adminEvents: [
       { title: 'Founders’ Breakfast', date: '4 Aug 2026', reg: 62, cap: 80, status: 'Live', tone: 'lime' },
       { title: 'Ideastorm Pitch Night', date: '11 Aug 2026', reg: 108, cap: 120, status: 'Live', tone: 'lime' },
@@ -202,13 +182,31 @@
       { title: 'Winter Internship Kick-off', date: '14 Sep 2026', reg: 0, cap: 150, status: 'Draft', tone: 'mute' }
     ],
 
-    moderation: [
-      { title: 'Souq Stack', flag: 'Needs review', tone: 'teal', team: '9 members · forming',
-        note: 'Requesting a co-founder introduction and a legal-structure session. Two design partners named — verify before featuring.' },
-      { title: 'GreenLoop', flag: 'Lab access', tone: 'lime', team: '6 members · active',
-        note: 'Asking for extended bench time at the materials lab. Candidate for the incubation pipeline this quarter.' },
-      { title: 'CampusCoin', flag: 'Flagged ×2', tone: 'warn', team: '3 members · stalled',
-        note: 'Two alumni flagged unclear token claims. No activity in 41 days — recommend archive.' }
+    /* Ideas publish straight to Ideastorm — there is no approval gate. This is
+       the oversight list: what is live, how it is moving, what to do with it. */
+    ideaAdmin: [
+      { title: 'Souq Stack', stage: 'Pre-seed', tone: 'teal',
+        meta: '9 members · forming · active today',
+        note: 'Checkout and settlement rails for small GCC merchants. Two design partners signed; asking for a co-founder introduction and a legal-structure session.' },
+      { title: 'GreenLoop', stage: 'Prototype', tone: 'lime',
+        meta: '6 members · active · active 2 days ago',
+        note: 'Turning desalination brine into industrial minerals. Asking for extended bench time at the materials lab — candidate for the incubation pipeline this quarter.' },
+      { title: 'CampusCoin', stage: 'Concept', tone: 'mute', reports: '2 reports',
+        meta: '3 members · stalled · no activity in 41 days',
+        note: 'Token-based campus rewards. Two alumni reported unclear token claims and the team has not responded — recommend archive.' }
+    ],
+
+    /* Referrals reach programme staff before the employer: confirm the alum,
+       get their consent, then pass it on and track the outcome. */
+    referralAdmin: [
+      { alum: 'Dana Khalil', referrer: 'Omar Al-Thani', dest: 'Fluidic · Full-stack Engineer',
+        date: '24 Jul 2026', status: 'Needs verification', tone: 'warn', action: 'Verify alum' },
+      { alum: 'Reem Saleh', referrer: 'Sara Ibrahim', dest: 'Ogram · Data Analyst',
+        date: '18 Jul 2026', status: 'Awaiting consent', tone: 'mute', action: 'Chase consent' },
+      { alum: 'Yousef Kamal', referrer: 'Layla Hassan', dest: 'Meddy · ML Engineer',
+        date: '2 Jul 2026', status: 'With employer', tone: 'teal', action: 'View' },
+      { alum: 'Noor Al-Kuwari', referrer: 'Rashid Tamim', dest: 'Snoonu · Backend Engineer',
+        date: '12 Jun 2026', status: 'Hired', tone: 'lime', action: 'View' }
     ],
 
     /* ── Organization ─────────────────────────────────────────────── */
@@ -220,6 +218,7 @@
       { id: 1, name: 'Noor Al-Kuwari', initials: 'NK', tile: INK,
         role: 'Backend Engineer, 2 yrs', cohort: 'Cohort ’23',
         avail: 'Open to offers', availKey: 'open', skills: ['Go', 'Postgres', 'AWS', 'Docker'],
+        spotlight: 'Featured week 31',
         note: 'Built the payments service at a QSTP incubatee; wants a founding-team seat next.' },
       { id: 2, name: 'Yousef Kamal', initials: 'YK', tile: TEAL,
         role: 'ML Engineer, 3 yrs', cohort: 'Cohort ’22',
@@ -228,6 +227,7 @@
       { id: 3, name: 'Sara Ibrahim', initials: 'SI', tile: TEAL_MID,
         role: 'Product Designer, 4 yrs', cohort: 'Cohort ’21',
         avail: 'Open to offers', availKey: 'open', skills: ['Figma', 'Research', 'Design systems'],
+        spotlight: 'Featured in July',
         note: 'Ran the design system for a 40-person fintech; mentors two QSTP interns.' },
       { id: 4, name: 'Omar Al-Thani', initials: 'OT', tile: INK_DEEP,
         role: 'Full-stack Engineer, 1 yr', cohort: 'Cohort ’25',
@@ -239,10 +239,44 @@
         note: 'Owns the growth dashboard at an e-commerce incubatee. Wants more modelling work.' }
     ],
 
+    /* The org's own offers. `people` references directory ids with a per-offer
+       match score; offers published from the UI get the same shape. */
     liveOffers: [
-      { title: 'Senior Backend Engineer', meta: 'Doha · Hybrid · posted 2d ago', applicants: 14 },
-      { title: 'Product Analyst (Intern)', meta: 'Doha · On-site · posted 9d ago', applicants: 31 },
-      { title: 'DevOps Engineer', meta: 'Remote · posted 3w ago', applicants: 8 }
+      { id: 1, title: 'Senior Backend Engineer', type: 'Full-time', location: 'Doha · Hybrid',
+        pay: 'QAR 28–34k', posted: '2 days ago', status: 'Open', tone: 'lime',
+        skills: 'Go, Postgres, Kubernetes',
+        funnel: { applied: 14, shortlisted: 6, interviewed: 3, hired: 0 },
+        people: [{ id: 1, match: '94%' }, { id: 2, match: '88%' }, { id: 8, match: '72%' }] },
+
+      { id: 2, title: 'Product Analyst (Intern)', type: 'Internship', location: 'Doha · On-site',
+        pay: 'QAR 8–10k', posted: '9 days ago', status: 'Open', tone: 'lime',
+        skills: 'SQL, Excel, Looker',
+        funnel: { applied: 31, shortlisted: 9, interviewed: 4, hired: 0 },
+        people: [{ id: 12, match: '81%' }, { id: 7, match: '76%' }, { id: 11, match: '64%' }] },
+
+      { id: 3, title: 'DevOps Engineer', type: 'Full-time', location: 'Remote',
+        pay: 'QAR 24–29k', posted: '3 weeks ago', status: 'Open', tone: 'lime',
+        skills: 'Kubernetes, Terraform, AWS',
+        funnel: { applied: 8, shortlisted: 3, interviewed: 1, hired: 0 },
+        people: [{ id: 8, match: '69%' }, { id: 1, match: '61%' }] },
+
+      { id: 4, title: 'Data Scientist', type: 'Full-time', location: 'Doha · Hybrid',
+        pay: 'QAR 26–31k', posted: '2 months ago', status: 'Filled', tone: 'teal',
+        skills: 'Python, Forecasting, dbt',
+        funnel: { applied: 22, shortlisted: 7, interviewed: 4, hired: 1 },
+        people: [{ id: 7, match: '91%' }, { id: 5, match: '84%' }] },
+
+      { id: 5, title: 'Mobile Engineer (iOS)', type: 'Full-time', location: 'Doha · Hybrid',
+        pay: 'QAR 25–30k', posted: '5 weeks ago', status: 'Closed', tone: 'mute',
+        skills: 'Swift, iOS, REST',
+        funnel: { applied: 11, shortlisted: 4, interviewed: 2, hired: 1 },
+        people: [{ id: 9, match: '88%' }, { id: 8, match: '70%' }] },
+
+      { id: 6, title: 'Growth Marketer', type: 'Full-time', location: 'Doha · On-site',
+        pay: 'QAR 18–23k', posted: '3 months ago', status: 'Closed', tone: 'mute',
+        skills: 'Lifecycle, Paid social',
+        funnel: { applied: 9, shortlisted: 2, interviewed: 0, hired: 0 },
+        people: [{ id: 4, match: '58%' }] }
     ]
   };
 
@@ -253,7 +287,6 @@
     places: ['Anywhere', 'Doha', 'Remote'],
     stages: ['All stages', 'Concept', 'Prototype', 'Pre-seed'],
     ranges: ['90 days', '12 months', 'All time'],
-    adminTabs: ['Events', 'Spotlight', 'Ideastorm'],
     availability: ['Any', 'Open now', 'Within 30 days'],
     skills: ['Any skill', 'Go', 'Python', 'React', 'Figma', 'SQL'],
     offerTypes: ['Full-time', 'Internship', 'Co-founder']
