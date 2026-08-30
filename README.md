@@ -1,7 +1,7 @@
 # QSTP Beyond — community dashboards
 
 Three dashboards for the QSTP Beyond alumni community, implemented from the
-Claude Design prototype in `QSTP Beyond.dc.html`:
+design prototype in `QSTP Beyond.dc.html`:
 
 | Screen | Who it is for |
 | --- | --- |
